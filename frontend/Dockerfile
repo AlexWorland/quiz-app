@@ -3,6 +3,14 @@ FROM node:20-alpine as builder
 
 WORKDIR /app
 
+# Build-time arguments for Vite env vars
+ARG VITE_API_URL=http://localhost:8080
+ARG VITE_WS_URL=ws://localhost:8080
+
+# Set as env vars for build
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_WS_URL=$VITE_WS_URL
+
 # Copy package files
 COPY package.json package-lock.json* yarn.lock* ./
 
