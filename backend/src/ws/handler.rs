@@ -1425,36 +1425,52 @@ pub async fn handle_audio_connection(
 
     // Check if we should use streaming transcription
     let use_streaming = state.config.enable_streaming_transcription;
-    let deepgram_api_key = if use_streaming {
-        get_deepgram_api_key_for_streaming(&state, host_id).await
-    } else {
-        None
-    };
 
-    // Delegate to streaming or REST-based handler
-    if let Some(api_key) = deepgram_api_key {
-        tracing::info!("Using Deepgram streaming transcription for segment {}", segment_id);
-        handle_audio_connection_streaming(
-            socket,
-            segment_id,
-            event_id,
-            host_id,
-            state,
-            api_key,
-        ).await;
-    } else {
-        if use_streaming {
-            tracing::warn!("Streaming transcription requested but Deepgram API key not available, falling back to REST");
+    if use_streaming {
+        // Try Deepgram streaming first
+        let deepgram_api_key = get_deepgram_api_key_for_streaming(&state, host_id).await;
+
+        if let Some(api_key) = deepgram_api_key {
+            tracing::info!("Using Deepgram streaming transcription for segment {}", segment_id);
+            handle_audio_connection_streaming(
+                socket,
+                segment_id,
+                event_id,
+                host_id,
+                state,
+                api_key,
+            ).await;
+            return;
         }
-        handle_audio_connection_rest(
-            socket,
-            segment_id,
-            event_id,
-            host_id,
-            state,
-            transcription_provider,
-        ).await;
+
+        // Try AssemblyAI streaming next
+        let assemblyai_api_key = get_assemblyai_api_key_for_streaming(&state, host_id).await;
+
+        if let Some(api_key) = assemblyai_api_key {
+            tracing::info!("Using AssemblyAI streaming transcription for segment {}", segment_id);
+            handle_audio_connection_streaming_assemblyai(
+                socket,
+                segment_id,
+                event_id,
+                host_id,
+                state,
+                api_key,
+            ).await;
+            return;
+        }
+
+        tracing::warn!("Streaming transcription requested but no streaming API key available, falling back to REST");
     }
+
+    // Fall back to REST-based transcription
+    handle_audio_connection_rest(
+        socket,
+        segment_id,
+        event_id,
+        host_id,
+        state,
+        transcription_provider,
+    ).await;
 }
 
 /// Get Deepgram API key for streaming transcription
@@ -1487,6 +1503,38 @@ async fn get_deepgram_api_key_for_streaming(
 
     // Fall back to config Deepgram API key
     state.config.deepgram_api_key.clone().filter(|k| !k.is_empty())
+}
+
+/// Get AssemblyAI API key for streaming transcription
+async fn get_assemblyai_api_key_for_streaming(
+    state: &AppState,
+    host_id: Uuid,
+) -> Option<String> {
+    // Try to get user's AssemblyAI settings
+    let user_settings = sqlx::query_as::<_, (String, Option<String>)>(
+        "SELECT stt_provider, stt_api_key_encrypted FROM user_ai_settings WHERE user_id = $1"
+    )
+    .bind(host_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    if let Some((provider, key_encrypted)) = user_settings {
+        if provider == "assemblyai" {
+            // Try to decrypt user's API key
+            if let Some(encrypted) = key_encrypted {
+                if let Ok(key) = decrypt_string(&encrypted, &state.config.encryption_key) {
+                    if !key.is_empty() {
+                        return Some(key);
+                    }
+                }
+            }
+        }
+    }
+
+    // Fall back to config AssemblyAI API key
+    state.config.assemblyai_api_key.clone().filter(|k| !k.is_empty())
 }
 
 /// Handle audio connection using REST-based transcription (existing implementation)
@@ -1625,11 +1673,11 @@ async fn handle_audio_connection_rest(
                                 // Check if we should generate a question
                                 if last_question_gen_time.elapsed().as_secs() >= question_gen_interval_secs {
                                     last_question_gen_time = std::time::Instant::now();
-                                    
+
                                     // Get previous transcript context
                                     let context_result = sqlx::query_scalar::<_, String>(
-                                        "SELECT string_agg(chunk_text, ' ' ORDER BY chunk_index) 
-                                         FROM transcripts 
+                                        "SELECT string_agg(chunk_text, ' ' ORDER BY chunk_index)
+                                         FROM transcripts
                                          WHERE segment_id = $1 AND chunk_index < $2"
                                     )
                                     .bind(segment_id)
@@ -1639,6 +1687,15 @@ async fn handle_audio_connection_rest(
                                     .ok()
                                     .flatten()
                                     .unwrap_or_default();
+
+                                    // Get num_fake_answers from event
+                                    let num_fake_answers = sqlx::query_scalar::<_, i32>(
+                                        "SELECT num_fake_answers FROM events WHERE id = $1"
+                                    )
+                                    .bind(event_id)
+                                    .fetch_one(&state.db)
+                                    .await
+                                    .unwrap_or(3) as usize;
 
                                     // Generate question using question generation service
                                     // Try to get user's Ollama model preference
@@ -1682,6 +1739,8 @@ async fn handle_audio_connection_rest(
                                     let question_service = crate::services::question_gen::QuestionGenerationService::new(
                                         state.db.clone(),
                                         ai_provider,
+                                        state.config.enable_ai_quality_scoring,
+                                        num_fake_answers,
                                     );
 
                                     match question_service.analyze_transcript(
@@ -1698,6 +1757,7 @@ async fn handle_audio_connection_rest(
                                                     &generated.correct_answer,
                                                     &generated.source_transcript,
                                                     generated.quality_score,
+                                                    &generated.fake_answers,
                                                 ).await {
                                                     // Broadcast question generated
                                                     let question_msg = crate::ws::messages::AudioServerMessage::QuestionGenerated {
@@ -2020,6 +2080,15 @@ async fn handle_audio_connection_streaming(
                                 .flatten()
                                 .unwrap_or_default();
 
+                                // Get num_fake_answers from event
+                                let num_fake_answers = sqlx::query_scalar::<_, i32>(
+                                    "SELECT num_fake_answers FROM events WHERE id = $1"
+                                )
+                                .bind(event_id)
+                                .fetch_one(&state.db)
+                                .await
+                                .unwrap_or(3) as usize;
+
                                 // Generate question
                                 let ollama_model = {
                                     let user_settings = sqlx::query_scalar::<_, Option<String>>(
@@ -2058,6 +2127,8 @@ async fn handle_audio_connection_streaming(
                                 let question_service = crate::services::question_gen::QuestionGenerationService::new(
                                     state.db.clone(),
                                     ai_provider,
+                                    state.config.enable_ai_quality_scoring,
+                                    num_fake_answers,
                                 );
 
                                 match question_service.analyze_transcript(
@@ -2073,6 +2144,7 @@ async fn handle_audio_connection_streaming(
                                                 &generated.correct_answer,
                                                 &generated.source_transcript,
                                                 generated.quality_score,
+                                                &generated.fake_answers,
                                             ).await {
                                                 let question_msg = crate::ws::messages::AudioServerMessage::QuestionGenerated {
                                                     question: generated.question,
@@ -2114,6 +2186,377 @@ async fn handle_audio_connection_streaming(
     tracing::info!("Cleaning up streaming connection for segment {}", segment_id);
     send_task.abort();
     deepgram_task.abort();
+}
+
+/// Handle audio connection using AssemblyAI streaming transcription
+///
+/// This function mirrors handle_audio_connection_streaming but uses AssemblyAIStreamingClient.
+/// The implementation follows the same pattern:
+/// - Split WebSocket connection
+/// - Create AssemblyAI streaming client and connect
+/// - Set up bidirectional channels for audio/transcripts
+/// - Spawn tasks to manage streaming and transcript processing
+/// - Handle question generation based on transcripts
+async fn handle_audio_connection_streaming_assemblyai(
+    socket: WebSocket,
+    segment_id: Uuid,
+    event_id: Uuid,
+    host_id: Uuid,
+    state: AppState,
+    assemblyai_api_key: String,
+) {
+    // Split WebSocket connection
+    let (mut sender, mut receiver) = socket.split();
+
+    // Create AssemblyAI streaming client
+    let mut streaming_client = crate::services::transcription::AssemblyAIStreamingClient::new(assemblyai_api_key);
+
+    // Connect to AssemblyAI WebSocket
+    if let Err(e) = streaming_client.connect().await {
+        tracing::error!("Failed to connect to AssemblyAI streaming: {}", e);
+        let error_msg = json!({
+            "type": "transcription_error",
+            "error": format!("Failed to establish streaming connection: {}", e)
+        });
+        let _ = sender.send(Message::Text(error_msg.to_string())).await;
+        return;
+    }
+
+    tracing::info!("AssemblyAI streaming connection established for segment {}", segment_id);
+
+    // State variables
+    let mut chunk_index = 0i32;
+    let mut last_question_gen_time = std::time::Instant::now();
+
+    // Get question generation interval
+    let question_gen_interval_secs: u64 = {
+        match sqlx::query_scalar::<_, Option<i32>>(
+            "SELECT question_gen_interval_seconds FROM events WHERE id = $1"
+        )
+        .bind(event_id)
+        .fetch_one(&state.db)
+        .await {
+            Ok(Some(interval)) => {
+                if interval >= 10 && interval <= 300 {
+                    interval as u64
+                } else {
+                    tracing::warn!("Invalid question_gen_interval_seconds {} for event {}, using default 30", interval, event_id);
+                    30
+                }
+            }
+            Ok(None) => 30,
+            Err(e) => {
+                tracing::warn!("Failed to fetch question_gen_interval_seconds for event {}: {}, using default 30", event_id, e);
+                30
+            }
+        }
+    };
+
+    // Get broadcast receiver for this event
+    let mut event_rx = state.hub.get_or_create_event_session(event_id).await;
+
+    // Channel for direct messages to this client
+    let (tx, mut direct_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+    // Channels for bidirectional communication with AssemblyAI task
+    let (audio_tx, mut audio_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(100);
+    let (transcript_tx, mut transcript_rx) = tokio::sync::mpsc::channel::<crate::services::transcription::TranscriptionResult>(100);
+
+    // Spawn task to forward broadcast messages and direct messages
+    let mut send_task = tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                msg = event_rx.recv() => {
+                    match msg {
+                        Ok(val) => {
+                            if let Some(msg_type) = val.get("type").and_then(|v| v.as_str()) {
+                                if msg_type == "transcript_update" || msg_type == "question_generated" {
+                                    if sender.send(Message::Text(val.to_string())).await.is_err() {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+                msg = direct_rx.recv() => {
+                    match msg {
+                        Some(text) => {
+                            if sender.send(Message::Text(text)).await.is_err() {
+                                break;
+                            }
+                        }
+                        None => break,
+                    }
+                }
+            }
+        }
+    });
+
+    // Spawn task to manage AssemblyAI streaming (send audio + receive transcripts)
+    let assemblyai_task = {
+        let mut client = streaming_client;
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    // Send audio chunks to AssemblyAI
+                    audio_chunk = audio_rx.recv() => {
+                        match audio_chunk {
+                            Some(chunk) => {
+                                if let Err(e) = client.send_audio(chunk).await {
+                                    tracing::error!("Failed to send audio to AssemblyAI: {}", e);
+                                    break;
+                                }
+                            }
+                            None => {
+                                tracing::debug!("Audio channel closed, stopping AssemblyAI task");
+                                break;
+                            }
+                        }
+                    }
+
+                    // Receive transcripts from AssemblyAI
+                    transcript_result = client.receive_transcript() => {
+                        match transcript_result {
+                            Ok(Some(result)) => {
+                                if transcript_tx.send(result).await.is_err() {
+                                    tracing::debug!("Transcript channel closed, stopping AssemblyAI task");
+                                    break;
+                                }
+                            }
+                            Ok(None) => {
+                                tracing::info!("AssemblyAI streaming connection closed");
+                                break;
+                            }
+                            Err(e) => {
+                                tracing::error!("Error receiving transcript from AssemblyAI: {}", e);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            // Close connection when done
+            tracing::info!("Closing AssemblyAI streaming connection");
+            let _ = client.close().await;
+        })
+    };
+
+    // Send connection confirmation
+    let connected = json!({
+        "type": "audio_connected",
+        "message": "Ready to receive audio (AssemblyAI streaming mode)"
+    });
+
+    if tx.send(connected.to_string()).is_err() {
+        tracing::error!("Failed to send audio connection message");
+        send_task.abort();
+        assemblyai_task.abort();
+        return;
+    }
+
+    // Main loop: handle audio chunks and transcript results
+    loop {
+        tokio::select! {
+            // Handle incoming audio chunks from client
+            audio_msg = receiver.next() => {
+                match audio_msg {
+                    Some(Ok(Message::Binary(data))) => {
+                        tracing::debug!("Received {} bytes of audio for AssemblyAI streaming", data.len());
+
+                        // Send audio to AssemblyAI task via channel
+                        if let Err(e) = audio_tx.send(data.to_vec()).await {
+                            tracing::error!("Failed to send audio to AssemblyAI task: {}", e);
+                            let error_msg = crate::ws::messages::AudioServerMessage::TranscriptionError {
+                                error: format!("Streaming transcription failed: {}", e),
+                            };
+                            send_ws_message(&tx, error_msg).await;
+                            break;
+                        }
+                    }
+                    Some(Ok(Message::Text(text))) => {
+                        // Handle control messages
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
+                            if parsed.get("type").and_then(|v| v.as_str()) == Some("audio_stop") {
+                                tracing::info!("Audio stream ended");
+                                break;
+                            }
+                        }
+                    }
+                    Some(Ok(Message::Close(_))) => {
+                        tracing::info!("Audio connection closed");
+                        break;
+                    }
+                    Some(Err(e)) => {
+                        tracing::error!("WebSocket error: {}", e);
+                        break;
+                    }
+                    None => {
+                        tracing::info!("Audio stream ended");
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+
+            // Handle transcript results from AssemblyAI
+            result = transcript_rx.recv() => {
+                match result {
+                    Some(transcript_result) => {
+                        if !transcript_result.text.is_empty() {
+                            // Store transcript chunk in database
+                            let timestamp = chrono::Utc::now().timestamp() as f64;
+                            if let Err(e) = sqlx::query(
+                                r#"
+                                INSERT INTO transcripts (segment_id, chunk_text, chunk_index, timestamp_start, timestamp_end)
+                                VALUES ($1, $2, $3, $4, $5)
+                                "#
+                            )
+                            .bind(segment_id)
+                            .bind(&transcript_result.text)
+                            .bind(chunk_index)
+                            .bind(Some(timestamp))
+                            .bind(Some(timestamp))
+                            .execute(&state.db)
+                            .await
+                            {
+                                tracing::error!("Failed to store transcript: {}", e);
+                            }
+
+                            chunk_index += 1;
+
+                            // Broadcast transcript update
+                            let transcript_msg = crate::ws::messages::AudioServerMessage::TranscriptUpdate {
+                                text: transcript_result.text.clone(),
+                                is_final: transcript_result.is_final,
+                            };
+                            broadcast_ws_message(&state.hub, event_id, transcript_msg).await;
+
+                            // Check if we should generate a question (only for final results)
+                            if transcript_result.is_final && last_question_gen_time.elapsed().as_secs() >= question_gen_interval_secs {
+                                last_question_gen_time = std::time::Instant::now();
+
+                                // Get previous transcript context
+                                let context_result = sqlx::query_scalar::<_, String>(
+                                    "SELECT string_agg(chunk_text, ' ' ORDER BY chunk_index)
+                                     FROM transcripts
+                                     WHERE segment_id = $1 AND chunk_index < $2"
+                                )
+                                .bind(segment_id)
+                                .bind(chunk_index - 1)
+                                .fetch_optional(&state.db)
+                                .await
+                                .ok()
+                                .flatten()
+                                .unwrap_or_default();
+
+                                // Get num_fake_answers from event
+                                let num_fake_answers = sqlx::query_scalar::<_, i32>(
+                                    "SELECT num_fake_answers FROM events WHERE id = $1"
+                                )
+                                .bind(event_id)
+                                .fetch_one(&state.db)
+                                .await
+                                .unwrap_or(3) as usize;
+
+                                // Generate question
+                                let ollama_model = {
+                                    let user_settings = sqlx::query_scalar::<_, Option<String>>(
+                                        "SELECT ollama_model FROM user_ai_settings WHERE user_id = $1"
+                                    )
+                                    .bind(host_id)
+                                    .fetch_optional(&state.db)
+                                    .await
+                                    .ok()
+                                    .flatten()
+                                    .flatten();
+
+                                    user_settings.unwrap_or_else(|| state.config.ollama_model.clone())
+                                };
+
+                                let ai_provider = match create_default_ai_provider(&state.config) {
+                                    Ok(provider) => provider,
+                                    Err(e) => {
+                                        tracing::error!("Failed to create default AI provider: {}", e);
+                                        if state.config.ollama_base_url.is_empty() {
+                                            tracing::error!("Cannot fall back to Ollama: base URL is not configured");
+                                            let error_msg = crate::ws::messages::AudioServerMessage::TranscriptionError {
+                                                error: format!("AI provider configuration error: {}. Please configure an AI provider in settings.", e),
+                                            };
+                                            broadcast_ws_message(&state.hub, event_id, error_msg).await;
+                                            continue;
+                                        }
+                                        tracing::error!("Falling back to Ollama provider at {} with model {}", state.config.ollama_base_url, ollama_model);
+                                        Box::new(OllamaProvider::new(
+                                            state.config.ollama_base_url.clone(),
+                                            ollama_model,
+                                        )) as Box<dyn AIProvider>
+                                    }
+                                };
+
+                                let question_service = crate::services::question_gen::QuestionGenerationService::new(
+                                    state.db.clone(),
+                                    ai_provider,
+                                    state.config.enable_ai_quality_scoring,
+                                    num_fake_answers,
+                                );
+
+                                match question_service.analyze_transcript(
+                                    segment_id,
+                                    &context_result,
+                                    &transcript_result.text,
+                                ).await {
+                                    Ok(Some(generated)) => {
+                                        if generated.quality_score > 0.6 {
+                                            if let Ok(_qid) = question_service.store_question(
+                                                segment_id,
+                                                &generated.question,
+                                                &generated.correct_answer,
+                                                &generated.source_transcript,
+                                                generated.quality_score,
+                                                &generated.fake_answers,
+                                            ).await {
+                                                let question_msg = crate::ws::messages::AudioServerMessage::QuestionGenerated {
+                                                    question: generated.question,
+                                                    correct_answer: generated.correct_answer,
+                                                    source_transcript: generated.source_transcript,
+                                                };
+                                                broadcast_ws_message(&state.hub, event_id, question_msg).await;
+                                            } else {
+                                                tracing::error!("Failed to store generated question for segment {}", segment_id);
+                                            }
+                                        } else {
+                                            tracing::debug!("Generated question quality score {} below threshold 0.6", generated.quality_score);
+                                        }
+                                    }
+                                    Ok(None) => {
+                                        tracing::debug!("Question generation returned None for segment {}", segment_id);
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Question generation failed for segment {}: {}", segment_id, e);
+                                        let error_msg = crate::ws::messages::AudioServerMessage::TranscriptionError {
+                                            error: format!("Failed to generate question: {}", e),
+                                        };
+                                        broadcast_ws_message(&state.hub, event_id, error_msg).await;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                        tracing::info!("Transcript receiver channel closed");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Cleanup
+    tracing::info!("Cleaning up AssemblyAI streaming connection for segment {}", segment_id);
+    send_task.abort();
+    assemblyai_task.abort();
 }
 
 /// Create default transcription provider from config
