@@ -9,6 +9,8 @@ import { TranscriptView } from '@/components/recording/TranscriptView'
 import { GeneratedQuestionList } from '@/components/questions/GeneratedQuestionList'
 import { QuizReadyIndicator } from '@/components/questions/QuizReadyIndicator'
 import { QuestionEditor } from '@/components/questions/QuestionEditor'
+import { QuestionCreator } from '@/components/questions/QuestionCreator'
+import { BulkQuestionImport } from '@/components/questions/BulkQuestionImport'
 import { MasterLeaderboard } from '@/components/leaderboard/MasterLeaderboard'
 import { SegmentLeaderboard } from '@/components/leaderboard/SegmentLeaderboard'
 
@@ -45,6 +47,9 @@ export function EventHostPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [showingAnswer, setShowingAnswer] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
+
+  // Tab state for Traditional Mode
+  const [activeTab, setActiveTab] = useState<'add' | 'import' | 'list'>('add')
 
   const qualityThreshold = 0.7
 
@@ -239,6 +244,13 @@ export function EventHostPage() {
     }
   }
 
+  const handleQuestionAdded = async () => {
+    if (segmentId) {
+      const res = await getSegmentQuestions(segmentId)
+      setQuestions(res.data)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-dark-950 to-dark-900 flex items-center justify-center">
@@ -280,36 +292,38 @@ export function EventHostPage() {
           </div>
         </div>
 
-        {/* Top row: recording status + controls */}
-        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr] gap-6">
-          <div className="bg-dark-900 rounded-lg p-6 border border-dark-700 space-y-4">
-            <h2 className="text-lg font-semibold text-white mb-2">Recording Status</h2>
-            <RecordingStatus status={segment.status} startedAt={segment.recording_started_at} />
-            <RecordingControls
-              status={segment.status}
-              onStart={handleStartRecording}
-              onPause={handlePauseRecording}
-              onResume={handleResumeRecording}
-              onStop={handleStopRecording}
-              onRestart={handleRestartRecording}
-            />
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold text-white mb-2">Quiz Readiness</h2>
-              <QuizReadyIndicator
-                questionCount={questions.length}
-                goodQuestionCount={goodQuestionCount}
-                qualityThreshold={qualityThreshold}
+        {/* Listen-Only Mode: Recording status + controls */}
+        {event.mode === 'listen_only' && (
+          <div className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr] gap-6">
+            <div className="bg-dark-900 rounded-lg p-6 border border-dark-700 space-y-4">
+              <h2 className="text-lg font-semibold text-white mb-2">Recording Status</h2>
+              <RecordingStatus status={segment.status} startedAt={segment.recording_started_at} />
+              <RecordingControls
+                status={segment.status}
+                onStart={handleStartRecording}
+                onPause={handlePauseRecording}
+                onResume={handleResumeRecording}
+                onStop={handleStopRecording}
+                onRestart={handleRestartRecording}
               />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-white mb-2">Live Transcript</h2>
-              <TranscriptView transcript={transcript} isLive />
+
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white mb-2">Quiz Readiness</h2>
+                <QuizReadyIndicator
+                  questionCount={questions.length}
+                  goodQuestionCount={goodQuestionCount}
+                  qualityThreshold={qualityThreshold}
+                />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-white mb-2">Live Transcript</h2>
+                <TranscriptView transcript={transcript} isLive />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Quiz Controls */}
         <div className="bg-dark-900 rounded-lg p-6 border border-dark-700">
@@ -410,35 +424,122 @@ export function EventHostPage() {
         {/* Questions + leaderboards */}
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1.5fr] gap-6 items-start">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">Generated Questions</h2>
-              <Button
-                variant="secondary"
-                onClick={() => void getSegmentQuestions(segment.id).then((res) => setQuestions(res.data))}
-              >
-                Refresh
-              </Button>
-            </div>
+            {/* Traditional Mode: Tabbed Question Management */}
+            {event.mode === 'normal' ? (
+              <>
+                <div className="bg-dark-900 rounded-lg border border-dark-700 overflow-hidden">
+                  {/* Tab Headers */}
+                  <div className="flex border-b border-dark-700">
+                    <button
+                      onClick={() => setActiveTab('add')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+                        activeTab === 'add'
+                          ? 'bg-dark-800 text-white border-b-2 border-cyan-500'
+                          : 'text-gray-400 hover:text-white hover:bg-dark-800/50'
+                      }`}
+                    >
+                      Add Questions
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('import')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+                        activeTab === 'import'
+                          ? 'bg-dark-800 text-white border-b-2 border-cyan-500'
+                          : 'text-gray-400 hover:text-white hover:bg-dark-800/50'
+                      }`}
+                    >
+                      Bulk Import
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('list')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition ${
+                        activeTab === 'list'
+                          ? 'bg-dark-800 text-white border-b-2 border-cyan-500'
+                          : 'text-gray-400 hover:text-white hover:bg-dark-800/50'
+                      }`}
+                    >
+                      Question List ({questions.length})
+                    </button>
+                  </div>
 
-            {editingQuestionId ? (
-              (() => {
-                const q = questions.find((question) => question.id === editingQuestionId)
-                if (!q) return null
-                return (
-                  <QuestionEditor
-                    question={q}
-                    onSave={(partial) => handleSaveQuestion(q.id, partial)}
-                    onCancel={() => setEditingQuestionId(null)}
-                  />
-                )
-              })()
-            ) : null}
+                  {/* Tab Content */}
+                  <div className="p-6">
+                    {activeTab === 'add' && (
+                      <QuestionCreator segmentId={segment.id} onQuestionAdded={handleQuestionAdded} />
+                    )}
+                    {activeTab === 'import' && (
+                      <BulkQuestionImport segmentId={segment.id} onQuestionsImported={handleQuestionAdded} />
+                    )}
+                    {activeTab === 'list' && (
+                      <>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold text-white">Questions</h3>
+                          <Button
+                            variant="secondary"
+                            onClick={() => void getSegmentQuestions(segment.id).then((res) => setQuestions(res.data))}
+                          >
+                            Refresh
+                          </Button>
+                        </div>
 
-            <GeneratedQuestionList
-              questions={questions}
-              onEdit={handleEditQuestion}
-              onDelete={handleDeleteQuestion}
-            />
+                        {editingQuestionId ? (
+                          (() => {
+                            const q = questions.find((question) => question.id === editingQuestionId)
+                            if (!q) return null
+                            return (
+                              <QuestionEditor
+                                question={q}
+                                onSave={(partial) => handleSaveQuestion(q.id, partial)}
+                                onCancel={() => setEditingQuestionId(null)}
+                              />
+                            )
+                          })()
+                        ) : null}
+
+                        <GeneratedQuestionList
+                          questions={questions}
+                          onEdit={handleEditQuestion}
+                          onDelete={handleDeleteQuestion}
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Listen-Only Mode: Generated Questions */
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-white">Generated Questions</h2>
+                  <Button
+                    variant="secondary"
+                    onClick={() => void getSegmentQuestions(segment.id).then((res) => setQuestions(res.data))}
+                  >
+                    Refresh
+                  </Button>
+                </div>
+
+                {editingQuestionId ? (
+                  (() => {
+                    const q = questions.find((question) => question.id === editingQuestionId)
+                    if (!q) return null
+                    return (
+                      <QuestionEditor
+                        question={q}
+                        onSave={(partial) => handleSaveQuestion(q.id, partial)}
+                        onCancel={() => setEditingQuestionId(null)}
+                      />
+                    )
+                  })()
+                ) : null}
+
+                <GeneratedQuestionList
+                  questions={questions}
+                  onEdit={handleEditQuestion}
+                  onDelete={handleDeleteQuestion}
+                />
+              </>
+            )}
           </div>
 
           <div className="space-y-4">

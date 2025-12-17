@@ -156,12 +156,37 @@ export const restartRecording = (segmentId: string) =>
 export const getSegmentQuestions = (segmentId: string) =>
   client.get<Question[]>(`/segments/${segmentId}/questions`)
 
+export interface CreateQuestionRequest {
+  question_text: string
+  correct_answer: string
+  order_index?: number
+}
+
+export const createQuestionForSegment = (segmentId: string, data: CreateQuestionRequest) =>
+  client.post<Question>(`/segments/${segmentId}/questions`, data)
+
 // Question management by ID
 export const updateQuestion = (questionId: string, data: Partial<Question>) =>
   client.put<Question>(`/questions/${questionId}`, data)
 
 export const deleteQuestion = (questionId: string) =>
   client.delete(`/questions/${questionId}`)
+
+// Bulk import questions
+export interface BulkImportRequest {
+  questions: Array<{
+    question_text: string
+    correct_answer: string
+  }>
+}
+
+export interface BulkImportResponse {
+  imported: number
+  failed: number
+}
+
+export const bulkImportQuestions = (segmentId: string, data: BulkImportRequest) =>
+  client.post<BulkImportResponse>(`/segments/${segmentId}/questions/bulk`, data)
 
 // Leaderboard endpoints
 export const getMasterLeaderboard = (eventId: string) =>

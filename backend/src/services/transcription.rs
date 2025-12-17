@@ -1,5 +1,8 @@
 use crate::error::{AppError, Result};
 use reqwest::Client;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
+use futures::{SinkExt, StreamExt};
+use tokio::sync::mpsc;
 
 /// Speech-to-text provider trait
 #[async_trait::async_trait]
@@ -332,5 +335,355 @@ impl TranscriptionProvider for AssemblyAIProvider {
             is_final: true,
             confidence: None,
         })
+    }
+}
+
+/// Deepgram WebSocket streaming response types
+/// These types match the JSON structure returned by Deepgram's WebSocket API
+/// Reference: https://developers.deepgram.com/docs/streaming
+
+#[derive(Debug, serde::Deserialize)]
+struct DeepgramAlternative {
+    transcript: String,
+    confidence: f32,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct DeepgramChannel {
+    alternatives: Vec<DeepgramAlternative>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct DeepgramResponse {
+    channel: DeepgramChannel,
+    #[serde(default)]
+    is_final: bool,
+    #[serde(default)]
+    speech_final: bool,
+}
+
+/// Deepgram WebSocket streaming client
+///
+/// Provides true real-time streaming transcription using Deepgram's WebSocket API.
+/// This implementation maintains a persistent WebSocket connection and streams audio
+/// chunks as they arrive, receiving interim and final transcription results.
+///
+/// # Architecture
+///
+/// The streaming client uses a WebSocket connection to send audio chunks and receive
+/// transcription results in real-time. Key differences from REST API:
+///
+/// - **Persistent connection**: Single WebSocket connection for entire session
+/// - **Low latency**: No HTTP request/response overhead per chunk
+/// - **Interim results**: Receive partial transcripts before speech is finished
+/// - **True streaming**: Audio chunks sent as binary WebSocket messages
+///
+/// # Message Flow
+///
+/// 1. Client connects to `wss://api.deepgram.com/v1/listen` with query parameters
+/// 2. Authentication via `Authorization: Token {api_key}` header
+/// 3. Audio chunks sent as binary WebSocket messages
+/// 4. Transcription results received as JSON messages with structure:
+///    ```json
+///    {
+///      "channel": {
+///        "alternatives": [
+///          {
+///            "transcript": "text here",
+///            "confidence": 0.95
+///          }
+///        ]
+///      },
+///      "is_final": true,
+///      "speech_final": true
+///    }
+///    ```
+///
+/// # Usage Example
+///
+/// ```rust,no_run
+/// use quiz_backend::services::transcription::DeepgramStreamingClient;
+///
+/// async fn example() -> Result<(), Box<dyn std::error::Error>> {
+///     let mut client = DeepgramStreamingClient::new("your-api-key".to_string());
+///
+///     // Establish WebSocket connection
+///     client.connect().await?;
+///
+///     // Send audio chunks
+///     let audio_chunk = vec![/* audio bytes */];
+///     client.send_audio(audio_chunk).await?;
+///
+///     // Receive transcription results
+///     while let Some(result) = client.receive_transcript().await? {
+///         println!("Transcript: {} (final: {})", result.text, result.is_final);
+///         if result.is_final {
+///             break;
+///         }
+///     }
+///
+///     // Close connection
+///     client.close().await?;
+///     Ok(())
+/// }
+/// ```
+///
+/// # Error Handling
+///
+/// The client handles various error conditions:
+/// - Connection failures (network issues, DNS errors)
+/// - Authentication errors (invalid API key)
+/// - Message parsing errors (malformed JSON)
+/// - WebSocket close codes (server-initiated disconnection)
+///
+/// # Reconnection
+///
+/// Connection failures are reported as errors. The caller is responsible for
+/// implementing reconnection logic based on application requirements.
+pub struct DeepgramStreamingClient {
+    api_key: String,
+    ws_url: String,
+    sender: Option<futures::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, Message>>,
+    receiver: Option<futures::stream::SplitStream<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>>,
+}
+
+impl DeepgramStreamingClient {
+    /// Create a new Deepgram streaming client
+    ///
+    /// # Arguments
+    ///
+    /// * `api_key` - Deepgram API key for authentication
+    ///
+    /// # Panics
+    ///
+    /// Panics if the API key is empty
+    pub fn new(api_key: String) -> Self {
+        if api_key.is_empty() {
+            tracing::error!("DeepgramStreamingClient created with empty API key");
+            panic!("DeepgramStreamingClient requires a non-empty API key");
+        }
+
+        // Deepgram WebSocket endpoint with streaming parameters:
+        // - model=nova-2: Latest Deepgram model
+        // - punctuate=true: Add punctuation to transcripts
+        // - interim_results=true: Send partial results before speech is final
+        let ws_url = "wss://api.deepgram.com/v1/listen?model=nova-2&punctuate=true&interim_results=true".to_string();
+
+        Self {
+            api_key,
+            ws_url,
+            sender: None,
+            receiver: None,
+        }
+    }
+
+    /// Establish WebSocket connection to Deepgram
+    ///
+    /// This method creates a WebSocket connection with authentication and splits
+    /// the stream into sender and receiver halves for bidirectional communication.
+    ///
+    /// # Authentication
+    ///
+    /// Deepgram uses HTTP header-based authentication with the format:
+    /// `Authorization: Token {api_key}`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Connection to Deepgram fails (network issues, DNS errors)
+    /// - Authentication fails (invalid API key)
+    /// - Already connected (call close() first)
+    pub async fn connect(&mut self) -> Result<()> {
+        if self.sender.is_some() || self.receiver.is_some() {
+            return Err(AppError::Internal(
+                "WebSocket already connected. Call close() first.".to_string(),
+            ));
+        }
+
+        tracing::info!("Connecting to Deepgram WebSocket at {}", self.ws_url);
+
+        // Build WebSocket request with authentication header
+        let request = http::Request::builder()
+            .uri(&self.ws_url)
+            .header("Authorization", format!("Token {}", self.api_key))
+            .body(())
+            .map_err(|e| AppError::Internal(format!("Failed to build WebSocket request: {}", e)))?;
+
+        // Connect to WebSocket endpoint
+        let (ws_stream, response) = connect_async(request)
+            .await
+            .map_err(|e| AppError::Internal(format!("WebSocket connection failed: {}", e)))?;
+
+        // Check response status (should be 101 Switching Protocols)
+        let status = response.status();
+        if status != 101 {
+            return Err(AppError::Internal(format!(
+                "WebSocket handshake failed with status: {}",
+                status
+            )));
+        }
+
+        tracing::info!("Connected to Deepgram WebSocket successfully");
+
+        // Split stream into sender and receiver for independent operations
+        let (sender, receiver) = ws_stream.split();
+        self.sender = Some(sender);
+        self.receiver = Some(receiver);
+
+        Ok(())
+    }
+
+    /// Send audio chunk to Deepgram for transcription
+    ///
+    /// Audio chunks are sent as binary WebSocket messages. Deepgram processes
+    /// the audio stream and returns transcription results asynchronously.
+    ///
+    /// # Arguments
+    ///
+    /// * `audio_chunk` - Audio data bytes (typically WebM or raw audio format)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not connected (call connect() first)
+    /// - WebSocket send fails (connection dropped)
+    pub async fn send_audio(&mut self, audio_chunk: Vec<u8>) -> Result<()> {
+        let sender = self
+            .sender
+            .as_mut()
+            .ok_or_else(|| AppError::Internal("Not connected. Call connect() first.".to_string()))?;
+
+        tracing::debug!("Sending audio chunk of {} bytes", audio_chunk.len());
+
+        // Send audio as binary WebSocket message
+        sender
+            .send(Message::Binary(audio_chunk))
+            .await
+            .map_err(|e| AppError::Internal(format!("Failed to send audio chunk: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Receive transcription result from Deepgram
+    ///
+    /// This method reads the next WebSocket message from Deepgram and parses it
+    /// into a `TranscriptionResult`. Deepgram sends two types of results:
+    ///
+    /// - **Interim results**: Partial transcripts while user is still speaking
+    ///   (is_final=false). These can change as more audio is processed.
+    /// - **Final results**: Completed transcripts for finished speech segments
+    ///   (is_final=true). These are the authoritative transcripts.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(result))` - Transcription result received
+    /// - `Ok(None)` - Connection closed normally
+    /// - `Err(...)` - Error occurred
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not connected (call connect() first)
+    /// - JSON parsing fails (malformed response)
+    /// - WebSocket error (connection dropped)
+    pub async fn receive_transcript(&mut self) -> Result<Option<TranscriptionResult>> {
+        let receiver = self.receiver.as_mut().ok_or_else(|| {
+            AppError::Internal("Not connected. Call connect() first.".to_string())
+        })?;
+
+        // Read next WebSocket message
+        match receiver.next().await {
+            Some(Ok(message)) => match message {
+                Message::Text(text) => {
+                    tracing::debug!("Received text message: {}", text);
+
+                    // Parse JSON response from Deepgram
+                    let response: DeepgramResponse = serde_json::from_str(&text).map_err(|e| {
+                        AppError::Internal(format!("Failed to parse Deepgram response: {}", e))
+                    })?;
+
+                    // Extract transcript from first alternative
+                    let transcript = response
+                        .channel
+                        .alternatives
+                        .first()
+                        .map(|alt| alt.transcript.clone())
+                        .unwrap_or_default();
+
+                    let confidence = response
+                        .channel
+                        .alternatives
+                        .first()
+                        .map(|alt| alt.confidence);
+
+                    // Skip empty transcripts (Deepgram sometimes sends these)
+                    if transcript.is_empty() {
+                        tracing::debug!("Skipping empty transcript");
+                        return self.receive_transcript().await;
+                    }
+
+                    Ok(Some(TranscriptionResult {
+                        text: transcript,
+                        is_final: response.is_final,
+                        confidence,
+                    }))
+                }
+                Message::Close(frame) => {
+                    tracing::info!("WebSocket closed by server: {:?}", frame);
+                    Ok(None)
+                }
+                Message::Ping(_) | Message::Pong(_) => {
+                    // Automatically handled by tungstenite, just continue
+                    self.receive_transcript().await
+                }
+                _ => {
+                    tracing::debug!("Ignoring non-text message");
+                    self.receive_transcript().await
+                }
+            },
+            Some(Err(e)) => {
+                tracing::error!("WebSocket error: {}", e);
+                Err(AppError::Internal(format!("WebSocket error: {}", e)))
+            }
+            None => {
+                tracing::info!("WebSocket stream ended");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Close the WebSocket connection
+    ///
+    /// Sends a close frame to Deepgram and cleans up connection resources.
+    /// It's good practice to call this when done with transcription, though
+    /// the connection will be automatically closed when the client is dropped.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not connected (already closed)
+    /// - Close frame send fails
+    pub async fn close(&mut self) -> Result<()> {
+        if let Some(mut sender) = self.sender.take() {
+            tracing::info!("Closing Deepgram WebSocket connection");
+
+            // Send close frame
+            sender
+                .send(Message::Close(None))
+                .await
+                .map_err(|e| AppError::Internal(format!("Failed to send close frame: {}", e)))?;
+
+            // Close the sender
+            sender
+                .close()
+                .await
+                .map_err(|e| AppError::Internal(format!("Failed to close WebSocket: {}", e)))?;
+        }
+
+        // Drop receiver to complete cleanup
+        self.receiver = None;
+
+        tracing::info!("Deepgram WebSocket connection closed");
+        Ok(())
     }
 }

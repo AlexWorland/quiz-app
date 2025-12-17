@@ -33,6 +33,11 @@ pub struct Config {
     pub default_stt_provider: String,
     pub deepgram_api_key: Option<String>,
     pub assemblyai_api_key: Option<String>,
+    /// Enable streaming transcription for real-time speech-to-text processing.
+    /// When enabled, uses WebSocket-based streaming (Deepgram streaming API).
+    /// When disabled, falls back to REST-based pseudo-streaming with periodic polling.
+    /// Production consideration: Enable for high-volume events to reduce latency.
+    pub enable_streaming_transcription: bool,
 
     // Server
     pub backend_port: u16,
@@ -100,6 +105,10 @@ impl Config {
                 .filter(|s| !s.is_empty()),
             assemblyai_api_key: std::env::var("ASSEMBLYAI_API_KEY").ok()
                 .filter(|s| !s.is_empty()),
+            enable_streaming_transcription: std::env::var("ENABLE_STREAMING_TRANSCRIPTION")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
 
             // Server
             backend_port: std::env::var("BACKEND_PORT")

@@ -4,17 +4,64 @@ A real-time multiplayer quiz application for multi-presenter events with live au
 
 ## Features
 
+### Core Quiz Features
 - **Real-time Multiplayer**: WebSocket-based live quiz sessions with instant updates
 - **Multi-Presenter Support**: Host events with multiple presenters and segments
 - **AI Question Generation**: Generate quiz questions from content using Claude, OpenAI, or local Ollama
-- **Live Audio Transcription**: Real-time speech-to-text via Deepgram or AssemblyAI
+- **Live Audio Transcription**: Speech-to-text via Deepgram, AssemblyAI, or OpenAI Whisper
 - **Two Quiz Modes**:
   - **Traditional Mode**: Pre-written questions with AI-generated fake answers
   - **Listen Only Mode**: AI generates questions entirely from live audio
 - **Collaborative Canvas**: Real-time drawing capabilities for presenters
 - **QR Code Join**: Easy participant joining via QR codes
-- **Leaderboards**: Live score tracking and rankings
-- **Avatar System**: User avatars stored in S3-compatible storage
+- **Leaderboards**: Segment-level and master event leaderboards with live score tracking
+
+### User & Settings
+- **Avatar System**: Preset, emoji, or custom avatars stored in S3-compatible storage
+- **User Settings**: Per-user AI provider and STT provider configuration
+- **API Key Encryption**: Secure storage for user-provided API keys
+
+### Bonus Features
+- **Flappy Bird Mini-Game**: Bonus game mode for entertainment between quiz segments
+
+## Development Status
+
+### Fully Implemented
+- [x] Listen Only Mode - AI question generation from live audio
+- [x] **Traditional Mode** - Pre-written questions with AI-generated fake answers
+  - Manual question creation (single and bulk import via CSV/JSON)
+  - Automatic fake answer generation during quiz start
+  - Full question management (CRUD operations)
+  - Mode selection during event creation
+- [x] Real-time WebSocket Support - Hub pattern with broadcast channels
+- [x] AI Question Generation - Claude, OpenAI, Ollama providers with quality scoring
+- [x] Collaborative Drawing Canvas - Real-time strokes with color/brush controls
+- [x] QR Code Join - 6-character codes with QR generation
+- [x] Leaderboards - Segment-level and master event leaderboards
+- [x] Avatar System - Preset/emoji/custom with MinIO storage
+- [x] Event/Segment Management - Full CRUD with recording lifecycle
+- [x] User Settings - Per-user provider configuration
+- [x] API Key Encryption - Secure credential storage
+- [x] Flappy Bird Mini-Game - Bonus game mode
+- [x] True Streaming Transcription - Deepgram WebSocket streaming
+  - Real-time transcription with sub-second latency
+  - Interim and final results support
+  - Enabled via `ENABLE_STREAMING_TRANSCRIPTION` environment variable
+  - Graceful fallback to REST mode if streaming unavailable
+  - Backward compatible (defaults to REST mode)
+
+### Partially Implemented / Known Limitations
+- [ ] **AI-Based Quality Scoring** - Currently uses heuristic-based evaluation
+  - Checks question/answer length, grammar, format
+  - AI-powered quality assessment planned for future
+
+### Future Enhancements
+- [ ] Browser audio format validation (WebM/Opus compatibility)
+- [ ] Canvas performance optimization for large stroke counts
+- [ ] AssemblyAI WebSocket streaming (Deepgram streaming already implemented)
+- [ ] AI-powered question quality evaluation
+- [ ] Presenter handoff between segments
+- [ ] Event templates and question banks
 
 ## Tech Stack
 
@@ -28,7 +75,7 @@ A real-time multiplayer quiz application for multi-presenter events with live au
 | Object Storage | MinIO (S3-compatible) |
 | Real-time | WebSockets |
 | AI Providers | Claude, OpenAI, Ollama |
-| STT Providers | Deepgram, AssemblyAI, Whisper |
+| STT Providers | Deepgram, AssemblyAI, OpenAI Whisper |
 
 ## Prerequisites
 

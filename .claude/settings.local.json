@@ -12,7 +12,19 @@
       "Bash(npx playwright install:*)",
       "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 npx playwright install:*)",
       "Bash(npm run test:e2e:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd testing infrastructure and production security enhancements\n\nFrontend Testing:\n- Add Vitest with React Testing Library (86 unit tests)\n- Add Playwright for E2E testing (9 tests)\n- Test coverage: authStore, API client, ProtectedRoute, quiz components\n- E2E tests for auth flow, navigation, event/quiz (backend-dependent)\n\nBackend Security:\n- Add RUST_ENV environment variable for production detection\n- Add validate_for_production() to fail fast on insecure defaults\n- Add environment-aware CORS (permissive in dev, restricted in prod)\n- Require CORS_ALLOWED_ORIGINS in production mode\n\nDocumentation:\n- Update CLAUDE.md with testing commands and environment variables\n- Add APPLICATION_HEALTH_REPORT.md with issue tracking\n- Update .gitignore for test artifacts\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)",
+      "Bash(git config:*)",
+      "Bash(gh auth status:*)",
+      "Bash(mkdir:*)",
+      "Bash(git commit:*)",
+      "Bash(cat:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(git checkout:*)",
+      "Bash(docker-compose build:*)"
     ]
   }
 }

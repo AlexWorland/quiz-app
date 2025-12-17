@@ -163,6 +163,8 @@ async fn main() -> anyhow::Result<()> {
         
         // Question routes
         .route("/api/segments/:id/questions", get(routes::quiz::get_segment_questions))
+        .route("/api/segments/:id/questions", post(routes::quiz::create_question_for_segment))
+        .route("/api/segments/:id/questions/bulk", post(routes::quiz::bulk_import_questions))
         .route("/api/questions/:id", put(routes::quiz::update_question_by_id))
         .route("/api/questions/:id", delete(routes::quiz::delete_question_by_id))
         

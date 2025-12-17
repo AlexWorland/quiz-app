@@ -773,3 +773,140 @@ pub async fn clear_canvas(
 
     Ok(StatusCode::NO_CONTENT)
 }
+
+/// Create a pre-written question for a segment (Traditional Mode)
+pub async fn create_question_for_segment(
+    State(state): State<AppState>,
+    Path(segment_id): Path<Uuid>,
+    Extension(auth_user): Extension<AuthUser>,
+    Json(req): Json<crate::models::CreateQuestionRequest>,
+) -> Result<Json<crate::models::QuestionResponse>> {
+    use crate::models::Question;
+
+    // Get segment and verify ownership
+    let segment = sqlx::query_as::<_, Segment>(
+        "SELECT * FROM segments WHERE id = $1"
+    )
+    .bind(segment_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound("Segment not found".to_string()))?;
+
+    let event = sqlx::query_as::<_, Event>(
+        "SELECT * FROM events WHERE id = $1"
+    )
+    .bind(segment.event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound("Event not found".to_string()))?;
+
+    if event.host_id != auth_user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    // Get next order index if not provided
+    let order_index = match req.order_index {
+        Some(idx) => idx,
+        None => {
+            let result: (i64,) = sqlx::query_as(
+                "SELECT COALESCE(MAX(order_index), -1) + 1 FROM questions WHERE segment_id = $1"
+            )
+            .bind(segment_id)
+            .fetch_one(&state.db)
+            .await?;
+            result.0 as i32
+        }
+    };
+
+    let question = sqlx::query_as::<_, Question>(
+        r#"
+        INSERT INTO questions (segment_id, question_text, correct_answer, order_index, is_ai_generated)
+        VALUES ($1, $2, $3, $4, false)
+        RETURNING *
+        "#
+    )
+    .bind(segment_id)
+    .bind(&req.question_text)
+    .bind(&req.correct_answer)
+    .bind(order_index)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(question.into()))
+}
+
+/// Bulk import pre-written questions for a segment (Traditional Mode)
+pub async fn bulk_import_questions(
+    State(state): State<AppState>,
+    Path(segment_id): Path<Uuid>,
+    Extension(auth_user): Extension<AuthUser>,
+    Json(req): Json<crate::models::question::BulkImportQuestionsRequest>,
+) -> Result<Json<crate::models::question::BulkImportResult>> {
+    use crate::models::Question;
+    use crate::models::question::BulkImportResult;
+
+    // Get segment and verify ownership
+    let segment = sqlx::query_as::<_, Segment>(
+        "SELECT * FROM segments WHERE id = $1"
+    )
+    .bind(segment_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound("Segment not found".to_string()))?;
+
+    let event = sqlx::query_as::<_, Event>(
+        "SELECT * FROM events WHERE id = $1"
+    )
+    .bind(segment.event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound("Event not found".to_string()))?;
+
+    if event.host_id != auth_user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    // Get current max order index
+    let max_index_result: (i64,) = sqlx::query_as(
+        "SELECT COALESCE(MAX(order_index), -1) FROM questions WHERE segment_id = $1"
+    )
+    .bind(segment_id)
+    .fetch_one(&state.db)
+    .await?;
+    let mut current_index = max_index_result.0 as i32 + 1;
+
+    let mut imported_questions = Vec::new();
+    let mut failed_count = 0;
+
+    for item in req.questions {
+        let result = sqlx::query_as::<_, Question>(
+            r#"
+            INSERT INTO questions (segment_id, question_text, correct_answer, order_index, is_ai_generated)
+            VALUES ($1, $2, $3, $4, false)
+            RETURNING *
+            "#
+        )
+        .bind(segment_id)
+        .bind(&item.question_text)
+        .bind(&item.correct_answer)
+        .bind(current_index)
+        .fetch_one(&state.db)
+        .await;
+
+        match result {
+            Ok(question) => {
+                imported_questions.push(question.into());
+                current_index += 1;
+            }
+            Err(_) => {
+                failed_count += 1;
+            }
+        }
+    }
+
+    Ok(Json(BulkImportResult {
+        imported: imported_questions.len(),
+        failed: failed_count,
+        questions: imported_questions,
+    }))
+}

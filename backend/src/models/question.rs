@@ -66,6 +66,27 @@ pub struct UpdateQuestionRequest {
     pub order_index: Option<i32>,
 }
 
+/// Bulk import question item
+#[derive(Debug, Deserialize)]
+pub struct BulkQuestionItem {
+    pub question_text: String,
+    pub correct_answer: String,
+}
+
+/// Bulk import questions request
+#[derive(Debug, Deserialize)]
+pub struct BulkImportQuestionsRequest {
+    pub questions: Vec<BulkQuestionItem>,
+}
+
+/// Bulk import result
+#[derive(Debug, Serialize)]
+pub struct BulkImportResult {
+    pub imported: usize,
+    pub failed: usize,
+    pub questions: Vec<QuestionResponse>,
+}
+
 /// Generated answers for a question during a session
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneratedAnswer {

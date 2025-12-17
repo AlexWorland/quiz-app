@@ -11,9 +11,14 @@ export function EventsPage() {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createForm, setCreateForm] = useState({
+  const [createForm, setCreateForm] = useState<{
+    title: string
+    description: string
+    mode: 'listen_only' | 'normal'
+  }>({
     title: '',
     description: '',
+    mode: 'listen_only',
   })
   const [creating, setCreating] = useState(false)
 
@@ -43,12 +48,12 @@ export function EventsPage() {
       const newEvent = await createEvent({
         title: createForm.title,
         description: createForm.description || undefined,
-        mode: 'listen_only',
+        mode: createForm.mode,
         num_fake_answers: 3,
         time_per_question: 30,
       } as CreateEventRequest)
       setEvents([newEvent.data, ...events])
-      setCreateForm({ title: '', description: '' })
+      setCreateForm({ title: '', description: '', mode: 'listen_only' })
       setShowCreateModal(false)
     } catch (error) {
       console.error('Failed to create event:', error)
@@ -120,6 +125,42 @@ export function EventsPage() {
                   onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
                   placeholder="Add a description"
                 />
+
+                {/* Mode Selection */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-300">Event Mode</label>
+                  <div className="space-y-2">
+                    <label className="flex items-start gap-3 p-3 bg-dark-800 rounded cursor-pointer hover:bg-dark-700 transition">
+                      <input
+                        type="radio"
+                        name="mode"
+                        value="listen_only"
+                        checked={createForm.mode === 'listen_only'}
+                        onChange={(e) => setCreateForm({ ...createForm, mode: e.target.value as 'listen_only' | 'normal' })}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-white">Listen Only</div>
+                        <div className="text-sm text-gray-400">AI generates questions from live audio transcription during presentation</div>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-3 p-3 bg-dark-800 rounded cursor-pointer hover:bg-dark-700 transition">
+                      <input
+                        type="radio"
+                        name="mode"
+                        value="normal"
+                        checked={createForm.mode === 'normal'}
+                        onChange={(e) => setCreateForm({ ...createForm, mode: e.target.value as 'listen_only' | 'normal' })}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-white">Traditional</div>
+                        <div className="text-sm text-gray-400">Pre-write questions manually, AI generates fake answers during quiz</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <Button
                     type="button"
