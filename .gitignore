@@ -1,0 +1,54 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ===========================================
+# Rust Backend
+# ===========================================
+backend/target/
+**/*.rs.bk
+Cargo.lock
+
+# SQLx offline mode
+# backend/.sqlx/
+
+# ===========================================
+# React Frontend
+# ===========================================
+frontend/node_modules/
+frontend/dist/
+frontend/.cache/
+frontend/*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+frontend/coverage/
+
+# ===========================================
+# Docker
+# ===========================================
+# Don't ignore docker-compose.yml or Dockerfiles
+
+# ===========================================
+# Secrets (never commit these!)
+# ===========================================
+*.pem
+*.key
+secrets/
