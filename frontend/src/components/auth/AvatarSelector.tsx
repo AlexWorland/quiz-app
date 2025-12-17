@@ -17,8 +17,17 @@ const UNSPLASH_KEYWORDS = [
   'headshot',
 ]
 
+const DEFAULT_STOCK_AVATARS: string[] = [
+  'https://avatars.dicebear.com/api/identicon/quiz-1.svg',
+  'https://avatars.dicebear.com/api/identicon/quiz-2.svg',
+  'https://avatars.dicebear.com/api/identicon/quiz-3.svg',
+  'https://avatars.dicebear.com/api/identicon/quiz-4.svg',
+  'https://avatars.dicebear.com/api/identicon/quiz-5.svg',
+  'https://avatars.dicebear.com/api/identicon/quiz-6.svg',
+]
+
 interface AvatarSelectorProps {
-  onSelect: (url: string, type: 'emoji' | 'preset' | 'custom') => void
+  onSelect: (url: string, type: 'emoji' | 'preset' | 'custom', file?: File | null) => void
   loading?: boolean
 }
 
@@ -37,17 +46,24 @@ export function AvatarSelector({ onSelect, loading = false }: AvatarSelectorProp
   const loadStockImages = async () => {
     setLoadingImages(true)
     try {
+      const unsplashKey = import.meta.env.VITE_UNSPLASH_KEY
+
+      if (!unsplashKey) {
+        // Fallback: built-in stock avatars
+        setStockImages(DEFAULT_STOCK_AVATARS)
+        return
+      }
+
       const keyword = UNSPLASH_KEYWORDS[Math.floor(Math.random() * UNSPLASH_KEYWORDS.length)]
       const response = await fetch(
-        `https://api.unsplash.com/search/photos?query=${keyword}&per_page=12&client_id=${
-          import.meta.env.VITE_UNSPLASH_KEY || 'demo'
-        }`
+        `https://api.unsplash.com/search/photos?query=${keyword}&per_page=12&client_id=${unsplashKey}`
       )
       const data = await response.json()
       const urls = data.results?.map((img: any) => img.urls.small) || []
-      setStockImages(urls)
+      setStockImages(urls.length > 0 ? urls : DEFAULT_STOCK_AVATARS)
     } catch (error) {
       console.error('Failed to load stock images:', error)
+      setStockImages(DEFAULT_STOCK_AVATARS)
     } finally {
       setLoadingImages(false)
     }
@@ -55,14 +71,14 @@ export function AvatarSelector({ onSelect, loading = false }: AvatarSelectorProp
 
   const handleEmojiSelect = (emoji: string) => {
     setSelectedEmoji(emoji)
-    onSelect(emoji, 'emoji')
+    onSelect(emoji, 'emoji', null)
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    // File upload will be handled by parent component through API
-    onSelect(URL.createObjectURL(file), 'custom')
+    // File upload will be handled by parent through API; provide preview URL + file
+    onSelect(URL.createObjectURL(file), 'custom', file)
   }
 
   return (

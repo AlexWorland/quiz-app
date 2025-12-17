@@ -130,3 +130,82 @@ pub enum AudioServerMessage {
     #[serde(rename = "transcription_error")]
     TranscriptionError { error: String },
 }
+
+/// Canvas WebSocket messages
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum CanvasMessage {
+    #[serde(rename = "draw_stroke")]
+    DrawStroke {
+        stroke: StrokeData,
+    },
+    #[serde(rename = "clear_canvas")]
+    ClearCanvas,
+}
+
+/// Canvas server messages
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum CanvasServerMessage {
+    #[serde(rename = "stroke_added")]
+    StrokeAdded {
+        user_id: Uuid,
+        username: String,
+        stroke: StrokeData,
+    },
+    #[serde(rename = "canvas_cleared")]
+    CanvasCleared,
+    #[serde(rename = "canvas_sync")]
+    CanvasSync {
+        strokes: Vec<StrokeData>,
+    },
+}
+
+/// Stroke data structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StrokeData {
+    pub points: Vec<Point>,
+    pub color: String,
+    pub width: f64,
+}
+
+/// Point in a stroke
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Flappy Bird input messages from clients
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum FlappyInputMessage {
+    #[serde(rename = "flap")]
+    Flap {
+        user_id: Uuid,
+    },
+}
+
+/// Per-player Flappy Bird state
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FlappyPlayerState {
+    pub user_id: Uuid,
+    pub username: String,
+    pub avatar_url: Option<String>,
+    pub y: f32,
+    pub velocity: f32,
+    pub alive: bool,
+    pub score: i32,
+}
+
+/// Flappy Bird game state broadcast from server
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum FlappyServerMessage {
+    #[serde(rename = "flappy_state")]
+    FlappyState {
+        players: Vec<FlappyPlayerState>,
+        obstacle_x: f32,
+        gap_y: f32,
+    },
+}

@@ -91,15 +91,15 @@ impl From<User> for UserResponse {
 #[derive(Debug, Deserialize)]
 pub struct RegisterRequest {
     pub username: String,
-    pub email: String,
     pub password: String,
-    pub role: UserRole,
+    pub avatar_url: Option<String>,
+    pub avatar_type: Option<String>,
 }
 
 /// Login request
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
-    pub email: String,
+    pub username: String,
     pub password: String,
 }
 

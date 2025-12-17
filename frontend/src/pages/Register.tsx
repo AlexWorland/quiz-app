@@ -15,6 +15,7 @@ export function RegisterPage() {
     password: '',
     avatar_url: '',
     avatar_type: 'emoji' as 'emoji' | 'preset' | 'custom',
+    avatar_file: null as File | null,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
@@ -36,12 +37,10 @@ export function RegisterPage() {
     try {
       let avatarUrl = formData.avatar_url
 
-      // If it's a custom upload with object URL, we'd need to upload it
-      // For now, we'll handle emoji and stock images directly
-      if (formData.avatar_type === 'custom' && formData.avatar_url.startsWith('blob:')) {
-        // In a real scenario, would need to upload file here
-        // For now, use a placeholder
-        avatarUrl = 'https://via.placeholder.com/150'
+      // If custom avatar, upload the selected file first
+      if (formData.avatar_type === 'custom' && formData.avatar_file) {
+        const uploadRes = await uploadAPI.uploadAvatar(formData.avatar_file)
+        avatarUrl = uploadRes.data.url
       }
 
       const response = await authAPI.register({
@@ -89,8 +88,8 @@ export function RegisterPage() {
           />
 
           <AvatarSelector
-            onSelect={(url, type) =>
-              setFormData({ ...formData, avatar_url: url, avatar_type: type })
+            onSelect={(url, type, file) =>
+              setFormData({ ...formData, avatar_url: url, avatar_type: type, avatar_file: file ?? null })
             }
             loading={loading}
           />

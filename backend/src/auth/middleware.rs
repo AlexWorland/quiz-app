@@ -3,6 +3,7 @@ use axum::{
     http::{header::AUTHORIZATION, Request, StatusCode},
     middleware::Next,
     response::Response,
+    body::Body,
 };
 use uuid::Uuid;
 
@@ -26,10 +27,10 @@ impl From<Claims> for AuthUser {
 }
 
 /// Authentication middleware - validates JWT and adds AuthUser to request extensions
-pub async fn auth_middleware<B>(
+pub async fn auth_middleware(
     State(state): State<AppState>,
-    mut req: Request<B>,
-    next: Next<B>,
+    mut req: Request<Body>,
+    next: Next,
 ) -> Result<Response, StatusCode> {
     // Get authorization header
     let auth_header = req
@@ -57,13 +58,14 @@ pub async fn auth_middleware<B>(
 }
 
 /// Middleware that requires presenter role
-pub async fn presenter_only<B>(
-    req: Request<B>,
-    next: Next<B>,
+pub async fn presenter_only(
+    req: Request<Body>,
+    next: Next,
 ) -> Result<Response, StatusCode> {
     let auth_user = req
         .extensions()
         .get::<AuthUser>()
+        .cloned()
         .ok_or(StatusCode::UNAUTHORIZED)?;
 
     if auth_user.role != "presenter" {

@@ -60,7 +60,13 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Connected to database");
 
     // Run migrations
-    sqlx::migrate!("./migrations").run(&db).await?;
+    sqlx::migrate!("./migrations")
+        .run(&db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Migration failed: {}", e);
+            e
+        })?;
     tracing::info!("Database migrations completed");
 
     // Initialize S3/MinIO client
@@ -93,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/me", get(routes::auth::me))
         .route("/api/auth/profile", put(routes::auth::update_profile))
 
-        // Quiz routes (presenter)
+        // Quiz routes (presenter) - keeping for backward compatibility
         .route("/api/quizzes", get(routes::quiz::list_quizzes))
         .route("/api/quizzes", post(routes::quiz::create_quiz))
         .route("/api/quizzes/:id", get(routes::quiz::get_quiz))
@@ -102,6 +108,30 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/quizzes/:id/questions", post(routes::quiz::add_question))
         .route("/api/quizzes/:id/questions/:qid", put(routes::quiz::update_question))
         .route("/api/quizzes/:id/questions/:qid", delete(routes::quiz::delete_question))
+
+        // Event routes (new API)
+        .route("/api/events/join/:code", get(routes::quiz::get_event_by_code))
+        .route("/api/events/:id/segments", get(routes::quiz::get_event_with_segments))
+        
+        // Segment routes
+        .route("/api/segments/:id/recording/start", post(routes::quiz::start_recording))
+        .route("/api/segments/:id/recording/pause", post(routes::quiz::pause_recording))
+        .route("/api/segments/:id/recording/resume", post(routes::quiz::resume_recording))
+        .route("/api/segments/:id/recording/stop", post(routes::quiz::stop_recording))
+        .route("/api/segments/:id/recording/restart", post(routes::quiz::restart_recording))
+        
+        // Question routes
+        .route("/api/segments/:id/questions", get(routes::quiz::get_segment_questions))
+        .route("/api/questions/:id", put(routes::quiz::update_question_by_id))
+        .route("/api/questions/:id", delete(routes::quiz::delete_question_by_id))
+        
+        // Leaderboard routes
+        .route("/api/events/:id/leaderboard", get(routes::quiz::get_master_leaderboard))
+        .route("/api/segments/:id/leaderboard", get(routes::quiz::get_segment_leaderboard))
+        
+        // Canvas routes
+        .route("/api/events/:id/canvas", get(routes::quiz::get_canvas_strokes))
+        .route("/api/events/:id/canvas", delete(routes::quiz::clear_canvas))
 
         // Game session routes
         .route("/api/sessions", post(routes::session::create_session))
@@ -117,8 +147,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/upload/avatar", post(routes::upload::upload_avatar))
 
         // WebSocket routes
-        .route("/api/ws/:session_code", get(routes::ws::ws_handler))
-        .route("/api/ws/audio/:quiz_id", get(routes::ws::audio_ws_handler))
+        .route("/api/ws/event/:event_id", get(routes::ws::ws_handler))
+        .route("/api/ws/audio/:segment_id", get(routes::ws::audio_ws_handler))
 
         // Add middleware
         .layer(TraceLayer::new_for_http())
@@ -134,8 +164,21 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.backend_port));
     tracing::info!("Server listening on {}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to bind to {}: {}", addr, e);
+            e
+        })?;
+    
+    tracing::info!("Starting Axum server...");
+    axum::serve(listener, app)
+        .await
+        .map_err(|e| {
+            tracing::error!("Server error: {}", e);
+            e
+        })?;
 
+    tracing::info!("Server shut down");
     Ok(())
 }

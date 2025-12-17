@@ -6,9 +6,14 @@
 # IDE
 .idea/
 .vscode/
+.cursor/
+.cursorrules
 *.swp
 *.swo
 *~
+
+# AI Tools
+.codex/
 
 # OS
 .DS_Store
