@@ -78,6 +78,7 @@ export interface CreateEventRequest {
   mode?: 'listen_only' | 'normal'
   num_fake_answers?: number
   time_per_question?: number
+  question_gen_interval_seconds?: number // Interval for AI question generation (10-300 seconds, default: 30)
 }
 
 export interface CreateSegmentRequest {
@@ -169,6 +170,9 @@ export const getMasterLeaderboard = (eventId: string) =>
 export const getSegmentLeaderboard = (segmentId: string) =>
   client.get<LeaderboardEntry[]>(`/segments/${segmentId}/leaderboard`)
 
+export const getSegment = (eventId: string, segmentId: string) =>
+  client.get<Segment>(`/events/${eventId}/segments/${segmentId}`)
+
 // Canvas endpoints
 export const getCanvasStrokes = (eventId: string) =>
   client.get(`/events/${eventId}/canvas`)
@@ -197,6 +201,7 @@ export const eventAPI = {
   deleteQuestion,
   getMasterLeaderboard,
   getSegmentLeaderboard,
+  getSegment,
   getCanvasStrokes,
   clearCanvas,
 }

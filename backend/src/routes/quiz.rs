@@ -52,11 +52,15 @@ pub async fn create_quiz(
     let mode = req.mode.unwrap_or_else(|| "listen_only".to_string());
     let num_fake_answers = req.num_fake_answers.unwrap_or(3);
     let time_per_question = req.time_per_question.unwrap_or(30);
+    // Question generation interval: default 30 seconds, must be between 10-300 seconds (matching database constraint)
+    let question_gen_interval = req.question_gen_interval_seconds
+        .unwrap_or(30)
+        .clamp(10, 300);
 
     let event = sqlx::query_as::<_, Event>(
         r#"
-        INSERT INTO events (host_id, title, description, join_code, mode, num_fake_answers, time_per_question)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO events (host_id, title, description, join_code, mode, num_fake_answers, time_per_question, question_gen_interval_seconds)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
         "#,
     )
@@ -67,6 +71,7 @@ pub async fn create_quiz(
     .bind(mode)
     .bind(num_fake_answers)
     .bind(time_per_question)
+    .bind(question_gen_interval)
     .fetch_one(&state.db)
     .await?;
 
@@ -116,7 +121,8 @@ pub async fn update_quiz(
             description = COALESCE($3, description),
             status = COALESCE($4, status),
             num_fake_answers = COALESCE($5, num_fake_answers),
-            time_per_question = COALESCE($6, time_per_question)
+            time_per_question = COALESCE($6, time_per_question),
+            question_gen_interval_seconds = COALESCE($7, question_gen_interval_seconds)
         WHERE id = $1
         RETURNING *
         "#,
@@ -127,6 +133,7 @@ pub async fn update_quiz(
     .bind(&req.status)
     .bind(req.num_fake_answers)
     .bind(req.time_per_question)
+    .bind(req.question_gen_interval_seconds)
     .fetch_one(&state.db)
     .await?;
 
@@ -317,6 +324,24 @@ pub async fn get_event_with_segments(
         "event": event,
         "segments": segments.into_iter().map(|s| SegmentResponse::from(s)).collect::<Vec<_>>()
     })))
+}
+
+/// Get a single segment by event ID and segment ID
+pub async fn get_segment(
+    State(state): State<AppState>,
+    Path((event_id, segment_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<SegmentResponse>> {
+    // Verify the segment belongs to the event
+    let segment = sqlx::query_as::<_, Segment>(
+        "SELECT * FROM segments WHERE id = $1 AND event_id = $2"
+    )
+    .bind(segment_id)
+    .bind(event_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound("Segment not found".to_string()))?;
+
+    Ok(Json(segment.into()))
 }
 
 /// Start recording for a segment

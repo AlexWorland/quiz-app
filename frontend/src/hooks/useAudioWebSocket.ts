@@ -3,6 +3,28 @@ import { useAuthStore } from '@/store/authStore'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080'
 
+/**
+ * Detect the best supported audio MIME type for MediaRecorder
+ * Returns the first supported format, or null if none are supported
+ */
+function getSupportedAudioMimeType(): string | null {
+  const types = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/mp4',
+    'audio/wav',
+  ]
+  
+  for (const type of types) {
+    if (MediaRecorder.isTypeSupported(type)) {
+      return type
+    }
+  }
+  
+  return null
+}
+
 export interface TranscriptUpdate {
   text: string
   is_final: boolean
@@ -95,8 +117,15 @@ export function useAudioWebSocket(options: UseAudioWebSocketOptions) {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      
+      // Detect supported audio MIME type with fallback
+      const supportedMimeType = getSupportedAudioMimeType()
+      if (!supportedMimeType) {
+        throw new Error('No supported audio format found in this browser')
+      }
+      
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus',
+        mimeType: supportedMimeType,
       })
 
       mediaRecorder.ondataavailable = (event) => {

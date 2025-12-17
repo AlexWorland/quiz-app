@@ -6,6 +6,7 @@ use axum::{
     Router,
 };
 use sqlx::postgres::PgPoolOptions;
+use axum::http::{header::{AUTHORIZATION, CONTENT_TYPE}, Method};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -21,6 +22,41 @@ mod ws;
 
 use crate::config::Config;
 use crate::ws::hub::Hub;
+
+/// Build CORS layer based on environment.
+/// In production: restricts to configured origins with specific methods/headers.
+/// In development: allows all origins (permissive).
+fn build_cors_layer(config: &Config) -> CorsLayer {
+    if config.is_production() {
+        if let Some(ref origins) = config.cors_allowed_origins {
+            let origins: Vec<_> = origins
+                .iter()
+                .filter_map(|o| o.parse().ok())
+                .collect();
+
+            tracing::info!("CORS configured for production with {} allowed origins", origins.len());
+
+            CorsLayer::new()
+                .allow_origin(origins)
+                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+                .allow_headers([AUTHORIZATION, CONTENT_TYPE])
+        } else {
+            // This shouldn't happen since validate_for_production checks this,
+            // but fall back to permissive if somehow reached
+            tracing::warn!("Production mode without CORS origins configured, using permissive CORS");
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any)
+        }
+    } else {
+        tracing::info!("CORS configured for development (permissive)");
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    }
+}
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -49,6 +85,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Load configuration
     let config = Config::from_env()?;
+
+    // Validate production configuration
+    config.validate_for_production()?;
+
     let config = Arc::new(config);
 
     // Create database connection pool
@@ -112,6 +152,7 @@ async fn main() -> anyhow::Result<()> {
         // Event routes (new API)
         .route("/api/events/join/:code", get(routes::quiz::get_event_by_code))
         .route("/api/events/:id/segments", get(routes::quiz::get_event_with_segments))
+        .route("/api/events/:event_id/segments/:segment_id", get(routes::quiz::get_segment))
         
         // Segment routes
         .route("/api/segments/:id/recording/start", post(routes::quiz::start_recording))
@@ -152,12 +193,7 @@ async fn main() -> anyhow::Result<()> {
 
         // Add middleware
         .layer(TraceLayer::new_for_http())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        .layer(build_cors_layer(&config))
         .with_state(state);
 
     // Start server

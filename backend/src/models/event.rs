@@ -15,6 +15,7 @@ pub struct Event {
     pub status: String, // "waiting", "active", "finished"
     pub num_fake_answers: i32,
     pub time_per_question: i32,
+    pub question_gen_interval_seconds: Option<i32>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -45,6 +46,7 @@ pub struct EventResponse {
     pub status: String,
     pub num_fake_answers: i32,
     pub time_per_question: i32,
+    pub question_gen_interval_seconds: Option<i32>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -60,6 +62,7 @@ impl From<Event> for EventResponse {
             status: event.status,
             num_fake_answers: event.num_fake_answers,
             time_per_question: event.time_per_question,
+            question_gen_interval_seconds: event.question_gen_interval_seconds,
             created_at: event.created_at,
         }
     }
@@ -105,6 +108,7 @@ pub struct CreateEventRequest {
     pub mode: Option<String>, // defaults to "listen_only"
     pub num_fake_answers: Option<i32>,
     pub time_per_question: Option<i32>,
+    pub question_gen_interval_seconds: Option<i32>,
 }
 
 /// Update event request
@@ -115,6 +119,7 @@ pub struct UpdateEventRequest {
     pub status: Option<String>,
     pub num_fake_answers: Option<i32>,
     pub time_per_question: Option<i32>,
+    pub question_gen_interval_seconds: Option<i32>,
 }
 
 /// Create segment request

@@ -222,11 +222,41 @@ docker-compose down -v
 - Run specific: `cargo test test_name -- --nocapture`
 - Focus on services and critical business logic
 
-### Frontend Tests
+### Frontend Unit Tests (Vitest)
 
-- Setup with Vitest (not yet fully configured)
-- Test React components and Zustand stores
-- Mock API calls with MSW or axios mocks
+```bash
+npm test              # Run all unit tests
+npm run test:watch    # Watch mode
+npm run test:coverage # With coverage report
+```
+
+**Test files** in `__tests__/` directories:
+- `store/__tests__/authStore.test.ts` - Auth state management
+- `api/__tests__/client.test.ts` - API interceptors, 401 handling
+- `components/__tests__/ProtectedRoute.test.tsx` - Route guards
+- `components/quiz/__tests__/` - QuestionDisplay, AnswerSelection, QuizResults
+- `components/common/__tests__/` - Button, Input components
+- `components/auth/__tests__/AvatarSelector.test.tsx` - Avatar selection
+
+### Frontend E2E Tests (Playwright)
+
+```bash
+npm run test:e2e          # Run all E2E tests (headless)
+npm run test:e2e:ui       # Open Playwright UI for debugging
+npm run test:e2e:headed   # Run with visible browser
+```
+
+**Test files** in `e2e/`:
+- `auth.spec.ts` - Login, registration, navigation
+- `navigation.spec.ts` - Basic app navigation, 404 handling
+- `event.spec.ts` - Event management (requires backend)
+- `quiz.spec.ts` - Quiz participation (requires backend)
+- `fixtures/auth.ts` - Authentication helpers
+
+**Notes:**
+- E2E tests auto-start the dev server
+- Some tests skip if backend is unavailable
+- Screenshots saved on failure in `test-results/`
 
 ## Important Files & Their Roles
 
@@ -243,17 +273,25 @@ docker-compose down -v
 ## Environment Variables
 
 **Backend** (in `.env` or Docker):
+- `RUST_ENV`: Environment mode (`development` or `production`, default: `development`)
 - `DATABASE_URL`: PostgreSQL connection string (required)
 - `JWT_SECRET`: Signing key for JWT tokens (required for production)
 - `JWT_EXPIRY_HOURS`: Token expiration (default: 24)
+- `ENCRYPTION_KEY`: 32-byte key for encrypting stored API keys (required for production)
+- `CORS_ALLOWED_ORIGINS`: Comma-separated allowed origins (required for production)
 - `DEFAULT_AI_PROVIDER`: `claude`, `openai`, or `ollama` (default: `claude`)
 - `ANTHROPIC_API_KEY`: Claude API key (if using claude provider)
 - `OPENAI_API_KEY`: OpenAI API key (if using openai provider)
-- `OLLAMA_BASE_URL`: Ollama endpoint (default: `http://ollama:11434`)
+- `OLLAMA_BASE_URL`: Ollama endpoint (default: `http://localhost:11434`)
 - `DEEPGRAM_API_KEY` / `ASSEMBLYAI_API_KEY`: Speech-to-text providers
 - `MINIO_*`: MinIO credentials and bucket configuration
 - `RUST_LOG`: Log level (default: `info`)
-- `ENCRYPTION_KEY`: 32-byte key for encrypting stored API keys
+
+**Production Mode** (`RUST_ENV=production`):
+- Validates that `JWT_SECRET` is not the default value
+- Validates that `ENCRYPTION_KEY` is not the default value
+- Requires `CORS_ALLOWED_ORIGINS` to be set
+- Restricts CORS to configured origins only
 
 **Frontend** (Vite env):
 - `VITE_API_URL`: Backend API base URL (default: `http://localhost:8080`)

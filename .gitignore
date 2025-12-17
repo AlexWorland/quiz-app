@@ -45,6 +45,9 @@ yarn-error.log*
 
 # Testing
 frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
 
 # ===========================================
 # Docker

@@ -21,6 +21,7 @@ import {
   getSegmentQuestions,
   getSegmentLeaderboard,
   getMasterLeaderboard,
+  getSegment,
 } from '@/api/endpoints'
 import { useAudioWebSocket, type AudioServerMessage } from '@/hooks/useAudioWebSocket'
 import { useEventWebSocket, type ServerMessage, type Participant } from '@/hooks/useEventWebSocket'
@@ -73,13 +74,9 @@ export function EventHostPage() {
       setSegmentRankings(segLb.data)
       setEventRankings(evtLb.data)
 
-      // We don't yet have a dedicated endpoint for a single segment,
-      // so fetch all segments for the event and pick the one we need.
-      const segmentsRes = await eventAPI.get(eventId)
-      const segmentsList = (segmentsRes.data as Event & { segments?: Segment[] }).segments
-      const foundSegment =
-        segmentsList?.find((s) => s.id === segmentId) ?? null
-      setSegment(foundSegment)
+      // Fetch the specific segment using the dedicated endpoint
+      const segmentRes = await getSegment(eventId, segmentId)
+      setSegment(segmentRes.data)
 
       setQuestions(segmentQuestions.data)
     } catch (error) {

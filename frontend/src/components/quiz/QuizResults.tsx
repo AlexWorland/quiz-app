@@ -4,11 +4,21 @@ export interface AnswerDistribution {
   is_correct: boolean
 }
 
+export interface LeaderboardEntry {
+  rank: number
+  user_id: string
+  username: string
+  avatar_url?: string
+  score: number
+}
+
 interface QuizResultsProps {
   correctAnswer: string
   distribution: AnswerDistribution[]
   userAnswer?: string
   pointsEarned?: number
+  segmentLeaderboard?: LeaderboardEntry[]
+  eventLeaderboard?: LeaderboardEntry[]
 }
 
 export function QuizResults({
@@ -16,9 +26,13 @@ export function QuizResults({
   distribution,
   userAnswer,
   pointsEarned,
+  segmentLeaderboard,
+  eventLeaderboard,
 }: QuizResultsProps) {
   const totalAnswers = distribution.reduce((sum, d) => sum + d.count, 0)
   const maxCount = Math.max(...distribution.map((d) => d.count), 1)
+  const maxSegmentScore = Math.max(...(segmentLeaderboard?.map((e) => e.score) || []), 1)
+  const maxEventScore = Math.max(...(eventLeaderboard?.map((e) => e.score) || []), 1)
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -78,6 +92,70 @@ export function QuizResults({
           )
         })}
       </div>
+
+      {(segmentLeaderboard?.length || eventLeaderboard?.length) && (
+        <div className="mt-6 pt-6 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {segmentLeaderboard && segmentLeaderboard.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-gray-700">Segment Standings</h3>
+              {segmentLeaderboard.map((entry) => {
+                const barWidth = (entry.score / maxSegmentScore) * 100
+
+                return (
+                  <div key={entry.user_id} className="flex items-center">
+                    <div className="w-8 text-sm font-bold text-gray-600">
+                      {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                    </div>
+                    <div className="w-24 text-sm font-medium text-gray-700 truncate">
+                      {entry.username}
+                    </div>
+                    <div className="flex-1 mx-2">
+                      <div className="w-full bg-gray-200 rounded-full h-5">
+                        <div
+                          className="h-5 rounded-full flex items-center justify-end pr-2 bg-blue-500"
+                          style={{ width: `${Math.max(barWidth, 10)}%` }}
+                        >
+                          <span className="text-xs font-bold text-white">{entry.score}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {eventLeaderboard && eventLeaderboard.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-gray-700">Event Standings</h3>
+              {eventLeaderboard.map((entry) => {
+                const barWidth = (entry.score / maxEventScore) * 100
+
+                return (
+                  <div key={entry.user_id} className="flex items-center">
+                    <div className="w-8 text-sm font-bold text-gray-600">
+                      {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                    </div>
+                    <div className="w-24 text-sm font-medium text-gray-700 truncate">
+                      {entry.username}
+                    </div>
+                    <div className="flex-1 mx-2">
+                      <div className="w-full bg-gray-200 rounded-full h-5">
+                        <div
+                          className="h-5 rounded-full flex items-center justify-end pr-2 bg-purple-500"
+                          style={{ width: `${Math.max(barWidth, 10)}%` }}
+                        >
+                          <span className="text-xs font-bold text-white">{entry.score}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

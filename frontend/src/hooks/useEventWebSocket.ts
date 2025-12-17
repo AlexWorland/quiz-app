@@ -38,7 +38,7 @@ export type ServerMessage =
   | { type: 'question'; question_id: string; text: string; answers: string[]; time_limit: number }
   | { type: 'time_update'; remaining_seconds: number }
   | { type: 'answer_received'; user_id: string }
-  | { type: 'reveal'; correct_answer: string; distribution: AnswerDistribution[] }
+  | { type: 'reveal'; correct_answer: string; distribution: AnswerDistribution[]; segment_leaderboard: LeaderboardEntry[]; event_leaderboard: LeaderboardEntry[] }
   | { type: 'scores_update'; scores: Array<{ user_id: string; username: string; score: number; delta: number }> }
   | { type: 'leaderboard'; rankings: LeaderboardEntry[] }
   | { type: 'game_ended' }

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(cargo check:*)",
+      "Bash(npm install:*)",
+      "mcp__plugin_atlassian_atlassian__search",
+      "Bash(security find-certificate:*)",
+      "Bash(npm test:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npm init:*)",
+      "Bash(npx playwright install:*)",
+      "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 npx playwright install:*)",
+      "Bash(npm run test:e2e:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

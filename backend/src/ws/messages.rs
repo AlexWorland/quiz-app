@@ -55,6 +55,8 @@ pub enum ServerMessage {
     Reveal {
         correct_answer: String,
         distribution: Vec<AnswerDistributionMessage>,
+        segment_leaderboard: Vec<LeaderboardEntry>,
+        event_leaderboard: Vec<LeaderboardEntry>,
     },
     #[serde(rename = "scores_update")]
     ScoresUpdate {

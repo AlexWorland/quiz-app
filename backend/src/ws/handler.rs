@@ -11,7 +11,74 @@ use crate::ws::messages::{GameMessage, ServerMessage, ParticipantMessage};
 use crate::ws::hub::Participant;
 use crate::services::scoring::calculate_speed_based_score;
 use crate::services::ai::{AIProvider, ClaudeProvider, OpenAIProvider, OllamaProvider};
+use crate::services::crypto::decrypt_string;
 use crate::error::Result;
+
+/// Helper macro to unwrap_or with logging when default is used
+/// Usage: unwrap_or_log!(value, default, "message")
+macro_rules! unwrap_or_log {
+    ($value:expr, $default:expr, $message:expr) => {
+        match $value {
+            Some(v) => v,
+            None => {
+                tracing::warn!("Using default value for {}: {:?}", $message, $default);
+                $default
+            }
+        }
+    };
+}
+
+/// Safely serialize a value to JSON string, returning error message on failure
+fn serialize_to_json<T: serde::Serialize>(value: &T) -> Result<String, String> {
+    serde_json::to_string(value)
+        .map_err(|e| format!("JSON serialization failed: {}", e))
+}
+
+/// Safely serialize a value to JSON Value, returning error message on failure
+fn serialize_to_json_value<T: serde::Serialize>(value: &T) -> Result<serde_json::Value, String> {
+    serde_json::to_value(value)
+        .map_err(|e| format!("JSON serialization failed: {}", e))
+}
+
+/// Safely send a message through WebSocket, logging errors instead of panicking
+async fn send_ws_message<T: serde::Serialize>(
+    tx: &tokio::sync::mpsc::UnboundedSender<String>,
+    message: T,
+) {
+    match serialize_to_json(&message) {
+        Ok(json_str) => {
+            if let Err(e) = tx.send(json_str) {
+                tracing::warn!("Failed to send WebSocket message: {}", e);
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to serialize WebSocket message: {}", e);
+            // Send error message to client
+            let error_msg = ServerMessage::Error {
+                message: "Internal error: failed to serialize message".to_string(),
+            };
+            if let Ok(error_json) = serialize_to_json(&error_msg) {
+                let _ = tx.send(error_json);
+            }
+        }
+    }
+}
+
+/// Safely broadcast a message to all event participants, logging errors
+async fn broadcast_ws_message<T: serde::Serialize>(
+    hub: &crate::ws::hub::Hub,
+    event_id: uuid::Uuid,
+    message: T,
+) {
+    match serialize_to_json_value(&message) {
+        Ok(json_value) => {
+            hub.broadcast_to_event(event_id, &json_value).await;
+        }
+        Err(e) => {
+            tracing::error!("Failed to serialize broadcast message: {}", e);
+        }
+    }
+}
 
 /// Get or generate fake answers for a question
 async fn get_or_generate_answers(
@@ -48,48 +115,68 @@ async fn get_or_generate_answers(
     )
     .bind(event_id)
     .fetch_optional(&state.db)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error fetching event {}: {}", event_id, e);
+        crate::error::AppError::Internal(format!("Failed to fetch event: {}", e))
+    })?;
 
     let (num_fake, host_id) = event_info.ok_or_else(|| crate::error::AppError::Internal("Event not found".to_string()))?;
 
     // Get AI provider for host (or use default)
     let ai_provider: Box<dyn AIProvider> = {
         // Try to get user's AI settings
-        let user_settings = sqlx::query_as::<_, (String, Option<String>)>(
-            "SELECT llm_provider, llm_api_key_encrypted FROM user_ai_settings WHERE user_id = $1"
+        let user_settings = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
+            "SELECT llm_provider, llm_api_key_encrypted, ollama_model FROM user_ai_settings WHERE user_id = $1"
         )
         .bind(host_id)
         .fetch_optional(&state.db)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error fetching AI settings for user {}: {}", host_id, e);
+            crate::error::AppError::Internal(format!("Failed to fetch AI settings: {}", e))
+        })?;
 
-        if let Some((provider, _key_encrypted)) = user_settings {
-            // TODO: Decrypt API key
+        if let Some((provider, key_encrypted, ollama_model)) = user_settings {
+            let encryption_key = &state.config.encryption_key;
+            
+            // Try to decrypt user's API key, fall back to config if decryption fails
+            let api_key = if let Some(encrypted) = key_encrypted {
+                decrypt_string(&encrypted, encryption_key).ok()
+            } else {
+                None
+            };
+            
             match provider.as_str() {
                 "claude" => {
-                    if let Some(api_key) = &state.config.anthropic_api_key {
+                    if let Some(key) = api_key {
+                        Box::new(ClaudeProvider::new(key))
+                    } else if let Some(api_key) = &state.config.anthropic_api_key {
                         Box::new(ClaudeProvider::new(api_key.clone()))
                     } else {
-                        // Fallback to default
                         create_default_ai_provider(&state.config)?
                     }
                 }
                 "openai" => {
-                    if let Some(api_key) = &state.config.openai_api_key {
+                    if let Some(key) = api_key {
+                        Box::new(OpenAIProvider::new(key))
+                    } else if let Some(api_key) = &state.config.openai_api_key {
                         Box::new(OpenAIProvider::new(api_key.clone()))
                     } else {
                         create_default_ai_provider(&state.config)?
                     }
                 }
                 "ollama" => {
+                    // Use user's configured Ollama model, or fall back to config default
+                    let model = ollama_model.unwrap_or_else(|| state.config.ollama_model.clone());
                     Box::new(OllamaProvider::new(
                         state.config.ollama_base_url.clone(),
-                        "llama2".to_string(),
+                        model,
                     ))
                 }
                 _ => create_default_ai_provider(&state.config)?,
             }
         } else {
-            // Use default provider
             create_default_ai_provider(&state.config)?
         }
     };
@@ -135,6 +222,31 @@ async fn get_or_generate_answers(
     Ok(all_answers)
 }
 
+/// Get the effective Ollama model for a user, falling back to config default
+/// This centralizes the logic for selecting the Ollama model
+async fn get_ollama_model(
+    user_id: Option<uuid::Uuid>,
+    config: &crate::config::Config,
+    db: &sqlx::PgPool,
+) -> String {
+    if let Some(uid) = user_id {
+        if let Ok(Some(model)) = sqlx::query_scalar::<_, Option<String>>(
+            "SELECT ollama_model FROM user_ai_settings WHERE user_id = $1"
+        )
+        .bind(uid)
+        .fetch_optional(db)
+        .await
+        {
+            if let Some(m) = model {
+                if !m.is_empty() {
+                    return m;
+                }
+            }
+        }
+    }
+    config.ollama_model.clone()
+}
+
 /// Create default AI provider from config
 fn create_default_ai_provider(config: &crate::config::Config) -> Result<Box<dyn AIProvider>> {
     match config.default_ai_provider.as_str() {
@@ -151,7 +263,7 @@ fn create_default_ai_provider(config: &crate::config::Config) -> Result<Box<dyn 
         "ollama" => {
             Ok(Box::new(OllamaProvider::new(
                 config.ollama_base_url.clone(),
-                "llama2".to_string(),
+                config.ollama_model.clone(),
             )))
         }
         _ => {
@@ -234,7 +346,13 @@ pub async fn handle_ws_connection(
                         crate::ws::messages::CanvasMessage::DrawStroke { stroke } => {
                             if let Some(uid) = user_id {
                                 // Store stroke in database
-                                let stroke_json = serde_json::to_value(&stroke).unwrap();
+                                let stroke_json = match serialize_to_json_value(&stroke) {
+                                    Ok(v) => v,
+                                    Err(e) => {
+                                        tracing::error!("Failed to serialize stroke: {}", e);
+                                        continue; // Skip this message
+                                    }
+                                };
                                 if let Err(e) = sqlx::query(
                                     "INSERT INTO canvas_strokes (event_id, user_id, stroke_data) VALUES ($1, $2, $3)"
                                 )
@@ -254,20 +372,29 @@ pub async fn handle_ws_connection(
                                     username,
                                     stroke,
                                 };
-                                state.hub.broadcast_to_event(event_id, &serde_json::to_value(&stroke_msg).unwrap()).await;
+                                broadcast_ws_message(&state.hub, event_id, stroke_msg).await;
                             }
                         }
                         crate::ws::messages::CanvasMessage::ClearCanvas => {
                             // Only host can clear canvas
                             if let Some(uid) = user_id {
-                                let is_host = sqlx::query_scalar::<_, bool>(
+                                let is_host = match sqlx::query_scalar::<_, bool>(
                                     "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
                                 )
                                 .bind(event_id)
                                 .bind(uid)
                                 .fetch_one(&state.db)
-                                .await
-                                .unwrap_or(false);
+                                .await {
+                                    Ok(result) => result,
+                                    Err(e) => {
+                                        tracing::error!("Database error checking host status for canvas clear: {}", e);
+                                        let error_msg = ServerMessage::Error {
+                                            message: "Failed to verify permissions".to_string(),
+                                        };
+                                        send_ws_message(&tx, error_msg).await;
+                                        continue;
+                                    }
+                                };
 
                                 if is_host {
                                     // Delete all strokes for this event
@@ -283,12 +410,12 @@ pub async fn handle_ws_connection(
 
                                     // Broadcast clear
                                     let clear_msg = crate::ws::messages::CanvasServerMessage::CanvasCleared;
-                                    state.hub.broadcast_to_event(event_id, &serde_json::to_value(&clear_msg).unwrap()).await;
+                                    broadcast_ws_message(&state.hub, event_id, clear_msg).await;
                                 } else {
                                     let error_msg = ServerMessage::Error {
                                         message: "Only host can clear canvas".to_string(),
                                     };
-                                    let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                    send_ws_message(&tx, error_msg).await;
                                 }
                             }
                         }
@@ -304,7 +431,7 @@ pub async fn handle_ws_connection(
                         let error_msg = ServerMessage::Error {
                             message: format!("Invalid message format: {}", e),
                         };
-                        let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                        send_ws_message(&tx, error_msg).await;
                         continue;
                     }
                 };
@@ -346,27 +473,35 @@ pub async fn handle_ws_connection(
 
                                 // Send connected message
                                 let connected = ServerMessage::Connected { participants };
-                                let _ = tx.send(serde_json::to_string(&connected).unwrap());
+                                send_ws_message(&tx, connected).await;
 
-                                // Send canvas sync on join
+                                // Send canvas sync on join - limit strokes for performance
+                                // Performance tradeoff: Limiting strokes prevents slow initial load for events
+                                // with extensive canvas history, but users joining late may not see all strokes.
+                                // Consider pagination or time-based filtering (last N minutes) for very large events.
+                                let sync_limit = state.config.canvas_sync_limit as i64;
                                 let strokes_result = sqlx::query_scalar::<_, sqlx::types::Json<serde_json::Value>>(
-                                    "SELECT stroke_data FROM canvas_strokes WHERE event_id = $1 ORDER BY created_at ASC"
+                                    "SELECT stroke_data FROM canvas_strokes WHERE event_id = $1 ORDER BY created_at DESC LIMIT $2"
                                 )
                                 .bind(event_id)
+                                .bind(sync_limit)
                                 .fetch_all(&state.db)
                                 .await;
 
                                 if let Ok(strokes_json) = strokes_result {
-                                    let strokes: Vec<crate::ws::messages::StrokeData> = strokes_json
+                                    // Reverse to get chronological order (oldest first) since we queried DESC
+                                    let mut strokes: Vec<crate::ws::messages::StrokeData> = strokes_json
                                         .into_iter()
+                                        .rev()
                                         .filter_map(|json| {
                                             serde_json::from_value(json.0).ok()
                                         })
                                         .collect();
 
                                     if !strokes.is_empty() {
+                                        tracing::debug!("Syncing {} canvas strokes to new client for event {}", strokes.len(), event_id);
                                         let sync_msg = crate::ws::messages::CanvasServerMessage::CanvasSync { strokes };
-                                        let _ = tx.send(serde_json::to_string(&sync_msg).unwrap());
+                                        send_ws_message(&tx, sync_msg).await;
                                     }
                                 }
 
@@ -378,33 +513,35 @@ pub async fn handle_ws_connection(
                                         avatar_url: participant.avatar_url,
                                     },
                                 };
-                                state.hub.broadcast_to_event(event_id, &serde_json::to_value(&joined).unwrap()).await;
+                                broadcast_ws_message(&state.hub, event_id, joined).await;
                             }
                             Ok(None) => {
                                 let error_msg = ServerMessage::Error {
                                     message: "User not found".to_string(),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                             }
                             Err(e) => {
-                                tracing::error!("Database error: {}", e);
+                                tracing::error!("Database error fetching user {}: {}", uid, e);
+                                let error_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
                                 let error_msg = ServerMessage::Error {
-                                    message: "Database error".to_string(),
+                                    message: format!("Failed to join event. Please try again. (Error ID: {})", error_id),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                             }
                         }
                     }
                     GameMessage::Answer { question_id, selected_answer, response_time_ms } => {
-                        if user_id.is_none() {
-                            let error_msg = ServerMessage::Error {
-                                message: "Not joined to event".to_string(),
-                            };
-                            let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
-                            continue;
-                        }
-
-                        let uid = user_id.unwrap();
+                        let uid = match user_id {
+                            Some(id) => id,
+                            None => {
+                                let error_msg = ServerMessage::Error {
+                                    message: "Not joined to event".to_string(),
+                                };
+                                send_ws_message(&tx, error_msg).await;
+                                continue;
+                            }
+                        };
                         
                         // Get current game state
                         let game_state = state.hub.get_game_state(event_id).await;
@@ -412,7 +549,7 @@ pub async fn handle_ws_connection(
                             let error_msg = ServerMessage::Error {
                                 message: "Game not active".to_string(),
                             };
-                            let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                            send_ws_message(&tx, error_msg).await;
                             continue;
                         };
 
@@ -420,7 +557,7 @@ pub async fn handle_ws_connection(
                             let error_msg = ServerMessage::Error {
                                 message: "No active question".to_string(),
                             };
-                            let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                            send_ws_message(&tx, error_msg).await;
                             continue;
                         };
 
@@ -428,7 +565,7 @@ pub async fn handle_ws_connection(
                             let error_msg = ServerMessage::Error {
                                 message: "Question mismatch".to_string(),
                             };
-                            let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                            send_ws_message(&tx, error_msg).await;
                             continue;
                         }
 
@@ -438,7 +575,11 @@ pub async fn handle_ws_connection(
                         )
                         .bind(question_id)
                         .fetch_optional(&state.db)
-                        .await;
+                        .await
+                        .map_err(|e| {
+                            tracing::error!("Database error fetching question {}: {}", question_id, e);
+                            e
+                        });
 
                         match question_result {
                             Ok(Some((correct_answer, segment_id))) => {
@@ -516,40 +657,50 @@ pub async fn handle_ws_connection(
 
                                 // Broadcast answer received (host only sees this)
                                 let answer_received = ServerMessage::AnswerReceived { user_id: uid };
-                                state.hub.broadcast_to_event(event_id, &serde_json::to_value(&answer_received).unwrap()).await;
+                                broadcast_ws_message(&state.hub, event_id, answer_received).await;
                             }
                             Ok(None) => {
                                 let error_msg = ServerMessage::Error {
                                     message: "Question not found".to_string(),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                             }
                             Err(e) => {
-                                tracing::error!("Database error: {}", e);
+                                tracing::error!("Database error fetching question {}: {}", question_id, e);
+                                let error_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
                                 let error_msg = ServerMessage::Error {
-                                    message: "Database error".to_string(),
+                                    message: format!("Failed to process answer. Please try again. (Error ID: {})", error_id),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                             }
                         }
                     }
                     GameMessage::StartGame => {
                         // Only host can start game - check if user is event host
                         if let Some(uid) = user_id {
-                            let is_host = sqlx::query_scalar::<_, bool>(
+                            let is_host = match sqlx::query_scalar::<_, bool>(
                                 "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
                             )
                             .bind(event_id)
                             .bind(uid)
                             .fetch_one(&state.db)
-                            .await
-                            .unwrap_or(false);
+                            .await {
+                                Ok(result) => result,
+                                Err(e) => {
+                                    tracing::error!("Database error checking host status for start game: {}", e);
+                                    let error_msg = ServerMessage::Error {
+                                        message: "Failed to verify permissions".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
+                            };
 
                             if !is_host {
                                 let error_msg = ServerMessage::Error {
                                     message: "Only host can start game".to_string(),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                                 continue;
                             }
 
@@ -575,13 +726,25 @@ pub async fn handle_ws_connection(
                                 match question_result {
                                     Ok(Some((qid, qtext, correct, _))) => {
                                         // Get time limit from event
-                                        let time_limit = sqlx::query_scalar::<_, i32>(
+                                        let time_limit = match sqlx::query_scalar::<_, i32>(
                                             "SELECT time_per_question FROM events WHERE id = $1"
                                         )
                                         .bind(event_id)
                                         .fetch_one(&state.db)
-                                        .await
-                                        .unwrap_or(30);
+                                        .await {
+                                            Ok(limit) => {
+                                                if limit <= 0 {
+                                                    tracing::warn!("Invalid time_per_question {} for event {}, using default 30", limit, event_id);
+                                                    30
+                                                } else {
+                                                    limit
+                                                }
+                                            },
+                                            Err(e) => {
+                                                tracing::warn!("Database error fetching time_per_question for event {}: {}, using default 30", event_id, e);
+                                                30
+                                            }
+                                        };
 
                                         // Get or generate answers
                                         let all_answers = get_or_generate_answers(
@@ -607,7 +770,7 @@ pub async fn handle_ws_connection(
 
                                         // Broadcast game started and first question
                                         let started = ServerMessage::GameStarted;
-                                        state.hub.broadcast_to_event(event_id, &serde_json::to_value(&started).unwrap()).await;
+                                        broadcast_ws_message(&state.hub, event_id, started).await;
 
                                         let question_msg = ServerMessage::Question {
                                             question_id: qid,
@@ -615,47 +778,58 @@ pub async fn handle_ws_connection(
                                             answers: all_answers,
                                             time_limit,
                                         };
-                                        state.hub.broadcast_to_event(event_id, &serde_json::to_value(&question_msg).unwrap()).await;
+                                        broadcast_ws_message(&state.hub, event_id, question_msg).await;
                                     }
                                     Ok(None) => {
                                         let error_msg = ServerMessage::Error {
                                             message: "No questions found for this event".to_string(),
                                         };
-                                        let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                        send_ws_message(&tx, error_msg).await;
                                     }
                                     Err(e) => {
-                                        tracing::error!("Database error: {}", e);
+                                        tracing::error!("Database error fetching questions for segment {}: {}", segment_id, e);
+                                        let error_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
                                         let error_msg = ServerMessage::Error {
-                                            message: "Database error".to_string(),
+                                            message: format!("Failed to start game. Please try again. (Error ID: {})", error_id),
                                         };
-                                        let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                        send_ws_message(&tx, error_msg).await;
                                     }
                                 }
                             } else {
+                                tracing::error!("No segments found for event {}", event_id);
                                 let error_msg = ServerMessage::Error {
                                     message: "No segments found for this event".to_string(),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                             }
                         }
                     }
                     GameMessage::NextQuestion => {
                         // Only host can advance questions
                         if let Some(uid) = user_id {
-                            let is_host = sqlx::query_scalar::<_, bool>(
+                            let is_host = match sqlx::query_scalar::<_, bool>(
                                 "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
                             )
                             .bind(event_id)
                             .bind(uid)
                             .fetch_one(&state.db)
-                            .await
-                            .unwrap_or(false);
+                            .await {
+                                Ok(result) => result,
+                                Err(e) => {
+                                    tracing::error!("Database error checking host status for advance question: {}", e);
+                                    let error_msg = ServerMessage::Error {
+                                        message: "Failed to verify permissions".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
+                            };
 
                             if !is_host {
                                 let error_msg = ServerMessage::Error {
                                     message: "Only host can advance questions".to_string(),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                                 continue;
                             }
 
@@ -691,13 +865,25 @@ pub async fn handle_ws_connection(
                                             });
 
                                             // Get time limit from event
-                                            let time_limit = sqlx::query_scalar::<_, i32>(
+                                            let time_limit = match sqlx::query_scalar::<_, i32>(
                                                 "SELECT time_per_question FROM events WHERE id = $1"
                                             )
                                             .bind(event_id)
                                             .fetch_one(&state.db)
-                                            .await
-                                            .unwrap_or(30);
+                                            .await {
+                                                Ok(limit) => {
+                                                    if limit <= 0 {
+                                                        tracing::warn!("Invalid time_per_question {} for event {}, using default 30", limit, event_id);
+                                                        30
+                                                    } else {
+                                                        limit
+                                                    }
+                                                },
+                                                Err(e) => {
+                                                    tracing::warn!("Database error fetching time_per_question for event {}: {}, using default 30", event_id, e);
+                                                    30
+                                                }
+                                            };
 
                                             // Update game state
                                             state.hub.update_game_state(event_id, |state| {
@@ -715,15 +901,15 @@ pub async fn handle_ws_connection(
                                                 answers: all_answers,
                                                 time_limit,
                                             };
-                                            state.hub.broadcast_to_event(event_id, &serde_json::to_value(&question_msg).unwrap()).await;
+                                            broadcast_ws_message(&state.hub, event_id, question_msg).await;
                                         }
                                         Ok(None) => {
                                             // No more questions - end game
                                             let ended = ServerMessage::GameEnded;
-                                            state.hub.broadcast_to_event(event_id, &serde_json::to_value(&ended).unwrap()).await;
+                                            broadcast_ws_message(&state.hub, event_id, ended).await;
                                         }
                                         Err(e) => {
-                                            tracing::error!("Database error: {}", e);
+                                            tracing::error!("Database error fetching next question for segment {}: {}", segment_id, e);
                                         }
                                     }
                                 }
@@ -733,20 +919,29 @@ pub async fn handle_ws_connection(
                     GameMessage::RevealAnswer => {
                         // Only host can reveal answers
                         if let Some(uid) = user_id {
-                            let is_host = sqlx::query_scalar::<_, bool>(
+                            let is_host = match sqlx::query_scalar::<_, bool>(
                                 "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
                             )
                             .bind(event_id)
                             .bind(uid)
                             .fetch_one(&state.db)
-                            .await
-                            .unwrap_or(false);
+                            .await {
+                                Ok(result) => result,
+                                Err(e) => {
+                                    tracing::error!("Database error checking host status for reveal answers: {}", e);
+                                    let error_msg = ServerMessage::Error {
+                                        message: "Failed to verify permissions".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
+                            };
 
                             if !is_host {
                                 let error_msg = ServerMessage::Error {
                                     message: "Only host can reveal answers".to_string(),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                                 continue;
                             }
 
@@ -801,12 +996,90 @@ pub async fn handle_ws_connection(
                                             });
                                         }
 
+                                        // Query segment leaderboard
+                                        let segment_leaderboard = if let Some(segment_id) = state_ref.current_segment_id {
+                                            sqlx::query_as::<_, crate::models::question::LeaderboardEntry>(
+                                                r#"
+                                                SELECT
+                                                    ROW_NUMBER() OVER (ORDER BY score DESC) as rank,
+                                                    user_id,
+                                                    username,
+                                                    avatar_url,
+                                                    score
+                                                FROM (
+                                                    SELECT
+                                                        ss.user_id,
+                                                        u.username,
+                                                        u.avatar_url,
+                                                        ss.score
+                                                    FROM segment_scores ss
+                                                    JOIN users u ON ss.user_id = u.id
+                                                    WHERE ss.segment_id = $1
+                                                    ORDER BY ss.score DESC
+                                                ) ranked
+                                                "#
+                                            )
+                                            .bind(segment_id)
+                                            .fetch_all(&state.db)
+                                            .await
+                                            .unwrap_or_default()
+                                            .into_iter()
+                                            .map(|e| crate::ws::messages::LeaderboardEntry {
+                                                rank: e.rank as i32,
+                                                user_id: e.user_id,
+                                                username: e.username,
+                                                avatar_url: e.avatar_url,
+                                                score: e.score,
+                                            })
+                                            .collect()
+                                        } else {
+                                            vec![]
+                                        };
+
+                                        // Query event leaderboard
+                                        let event_leaderboard: Vec<crate::ws::messages::LeaderboardEntry> = sqlx::query_as::<_, crate::models::question::LeaderboardEntry>(
+                                            r#"
+                                            SELECT
+                                                ROW_NUMBER() OVER (ORDER BY total_score DESC) as rank,
+                                                user_id,
+                                                username,
+                                                avatar_url,
+                                                total_score as score
+                                            FROM (
+                                                SELECT
+                                                    ep.user_id,
+                                                    u.username,
+                                                    u.avatar_url,
+                                                    ep.total_score
+                                                FROM event_participants ep
+                                                JOIN users u ON ep.user_id = u.id
+                                                WHERE ep.event_id = $1
+                                                ORDER BY ep.total_score DESC
+                                            ) ranked
+                                            "#
+                                        )
+                                        .bind(event_id)
+                                        .fetch_all(&state.db)
+                                        .await
+                                        .unwrap_or_default()
+                                        .into_iter()
+                                        .map(|e| crate::ws::messages::LeaderboardEntry {
+                                            rank: e.rank as i32,
+                                            user_id: e.user_id,
+                                            username: e.username,
+                                            avatar_url: e.avatar_url,
+                                            score: e.score,
+                                        })
+                                        .collect();
+
                                         // Broadcast reveal
                                         let reveal = ServerMessage::Reveal {
                                             correct_answer,
                                             distribution,
+                                            segment_leaderboard,
+                                            event_leaderboard,
                                         };
-                                        state.hub.broadcast_to_event(event_id, &serde_json::to_value(&reveal).unwrap()).await;
+                                        broadcast_ws_message(&state.hub, event_id, reveal).await;
                                     }
                                 }
                             }
@@ -855,7 +1128,7 @@ pub async fn handle_ws_connection(
                                     }).collect();
 
                                     let leaderboard = ServerMessage::Leaderboard { rankings };
-                                    state.hub.broadcast_to_event(event_id, &serde_json::to_value(&leaderboard).unwrap()).await;
+                                    broadcast_ws_message(&state.hub, event_id, leaderboard).await;
                                 }
                             }
                         }
@@ -863,25 +1136,34 @@ pub async fn handle_ws_connection(
                     GameMessage::EndGame => {
                         // Only host can end game
                         if let Some(uid) = user_id {
-                            let is_host = sqlx::query_scalar::<_, bool>(
+                            let is_host = match sqlx::query_scalar::<_, bool>(
                                 "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
                             )
                             .bind(event_id)
                             .bind(uid)
                             .fetch_one(&state.db)
-                            .await
-                            .unwrap_or(false);
+                            .await {
+                                Ok(result) => result,
+                                Err(e) => {
+                                    tracing::error!("Database error checking host status for end game: {}", e);
+                                    let error_msg = ServerMessage::Error {
+                                        message: "Failed to verify permissions".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
+                            };
 
                             if !is_host {
                                 let error_msg = ServerMessage::Error {
                                     message: "Only host can end game".to_string(),
                                 };
-                                let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                                send_ws_message(&tx, error_msg).await;
                                 continue;
                             }
 
                             let ended = ServerMessage::GameEnded;
-                            state.hub.broadcast_to_event(event_id, &serde_json::to_value(&ended).unwrap()).await;
+                            broadcast_ws_message(&state.hub, event_id, ended).await;
                         }
                     }
                 }
@@ -896,7 +1178,7 @@ pub async fn handle_ws_connection(
                     
                     // Broadcast participant left
                     let left = ServerMessage::ParticipantLeft { user_id: uid };
-                    state.hub.broadcast_to_event(event_id, &serde_json::to_value(&left).unwrap()).await;
+                    broadcast_ws_message(&state.hub, event_id, left).await;
                 }
                 break;
             }
@@ -929,7 +1211,11 @@ pub async fn handle_audio_connection(
     )
     .bind(segment_id)
     .fetch_optional(&state.db)
-    .await;
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error fetching segment {}: {}", segment_id, e);
+        e
+    });
 
     let (event_id, host_id) = match segment_info {
         Ok(Some((eid, hid))) => (eid, hid),
@@ -948,38 +1234,192 @@ pub async fn handle_audio_connection(
         .bind(host_id)
         .fetch_optional(&state.db)
         .await
+        .map_err(|e| {
+            tracing::error!("Database error fetching STT settings for user {}: {}", host_id, e);
+            e
+        })
         .ok()
         .flatten();
 
-        if let Some((provider, _key_encrypted)) = user_settings {
-            // TODO: Decrypt API key
+        if let Some((provider, key_encrypted)) = user_settings {
+            let encryption_key = &state.config.encryption_key;
+            
+            // Try to decrypt user's API key, fall back to config if decryption fails
+            let api_key = if let Some(encrypted) = key_encrypted {
+                decrypt_string(&encrypted, encryption_key).ok()
+            } else {
+                None
+            };
+            
             match provider.as_str() {
                 "deepgram" => {
-                    if let Some(api_key) = &state.config.deepgram_api_key {
-                        Box::new(crate::services::transcription::DeepgramProvider::new(api_key.clone()))
+                    if let Some(key) = api_key {
+                        if key.is_empty() {
+                            tracing::warn!("User Deepgram API key is empty, falling back to config");
+                            if let Some(api_key) = &state.config.deepgram_api_key {
+                                if api_key.is_empty() {
+                                    match create_default_transcription_provider(&state.config) {
+                                        Ok(provider) => provider,
+                                        Err(e) => {
+                                            tracing::error!("Failed to create transcription provider: {}", e);
+                                            return;
+                                        }
+                                    }
+                                } else {
+                                    Box::new(crate::services::transcription::DeepgramProvider::new(api_key.clone()))
+                                }
+                            } else {
+                                match create_default_transcription_provider(&state.config) {
+                                    Ok(provider) => provider,
+                                    Err(e) => {
+                                        tracing::error!("Failed to create transcription provider: {}", e);
+                                        return;
+                                    }
+                                }
+                            }
+                        } else {
+                            Box::new(crate::services::transcription::DeepgramProvider::new(key))
+                        }
+                    } else if let Some(api_key) = &state.config.deepgram_api_key {
+                        if api_key.is_empty() {
+                            match create_default_transcription_provider(&state.config) {
+                                Ok(provider) => provider,
+                                Err(e) => {
+                                    tracing::error!("Failed to create transcription provider: {}", e);
+                                    return;
+                                }
+                            }
+                        } else {
+                            Box::new(crate::services::transcription::DeepgramProvider::new(api_key.clone()))
+                        }
                     } else {
-                        // Fallback to default
-                        create_default_transcription_provider(&state.config)
+                        match create_default_transcription_provider(&state.config) {
+                            Ok(provider) => provider,
+                            Err(e) => {
+                                tracing::error!("Failed to create transcription provider: {}", e);
+                                return;
+                            }
+                        }
                     }
                 }
                 "whisper" => {
-                    if let Some(api_key) = &state.config.openai_api_key {
-                        Box::new(crate::services::transcription::WhisperProvider::new(api_key.clone()))
+                    if let Some(key) = api_key {
+                        if key.is_empty() {
+                            tracing::warn!("User OpenAI API key is empty, falling back to config");
+                            if let Some(api_key) = &state.config.openai_api_key {
+                                if api_key.is_empty() {
+                                    match create_default_transcription_provider(&state.config) {
+                                        Ok(provider) => provider,
+                                        Err(e) => {
+                                            tracing::error!("Failed to create transcription provider: {}", e);
+                                            return;
+                                        }
+                                    }
+                                } else {
+                                    Box::new(crate::services::transcription::WhisperProvider::new(api_key.clone()))
+                                }
+                            } else {
+                                match create_default_transcription_provider(&state.config) {
+                                    Ok(provider) => provider,
+                                    Err(e) => {
+                                        tracing::error!("Failed to create transcription provider: {}", e);
+                                        return;
+                                    }
+                                }
+                            }
+                        } else {
+                            Box::new(crate::services::transcription::WhisperProvider::new(key))
+                        }
+                    } else if let Some(api_key) = &state.config.openai_api_key {
+                        if api_key.is_empty() {
+                            match create_default_transcription_provider(&state.config) {
+                                Ok(provider) => provider,
+                                Err(e) => {
+                                    tracing::error!("Failed to create transcription provider: {}", e);
+                                    return;
+                                }
+                            }
+                        } else {
+                            Box::new(crate::services::transcription::WhisperProvider::new(api_key.clone()))
+                        }
                     } else {
-                        create_default_transcription_provider(&state.config)
+                        match create_default_transcription_provider(&state.config) {
+                            Ok(provider) => provider,
+                            Err(e) => {
+                                tracing::error!("Failed to create transcription provider: {}", e);
+                                return;
+                            }
+                        }
                     }
                 }
                 "assemblyai" => {
-                    if let Some(api_key) = &state.config.assemblyai_api_key {
-                        Box::new(crate::services::transcription::AssemblyAIProvider::new(api_key.clone()))
+                    if let Some(key) = api_key {
+                        if key.is_empty() {
+                            tracing::warn!("User AssemblyAI API key is empty, falling back to config");
+                            if let Some(api_key) = &state.config.assemblyai_api_key {
+                                if api_key.is_empty() {
+                                    match create_default_transcription_provider(&state.config) {
+                                        Ok(provider) => provider,
+                                        Err(e) => {
+                                            tracing::error!("Failed to create transcription provider: {}", e);
+                                            return;
+                                        }
+                                    }
+                                } else {
+                                    Box::new(crate::services::transcription::AssemblyAIProvider::new(api_key.clone()))
+                                }
+                            } else {
+                                match create_default_transcription_provider(&state.config) {
+                                    Ok(provider) => provider,
+                                    Err(e) => {
+                                        tracing::error!("Failed to create transcription provider: {}", e);
+                                        return;
+                                    }
+                                }
+                            }
+                        } else {
+                            Box::new(crate::services::transcription::AssemblyAIProvider::new(key))
+                        }
+                    } else if let Some(api_key) = &state.config.assemblyai_api_key {
+                        if api_key.is_empty() {
+                            match create_default_transcription_provider(&state.config) {
+                                Ok(provider) => provider,
+                                Err(e) => {
+                                    tracing::error!("Failed to create transcription provider: {}", e);
+                                    return;
+                                }
+                            }
+                        } else {
+                            Box::new(crate::services::transcription::AssemblyAIProvider::new(api_key.clone()))
+                        }
                     } else {
-                        create_default_transcription_provider(&state.config)
+                        match create_default_transcription_provider(&state.config) {
+                            Ok(provider) => provider,
+                            Err(e) => {
+                                tracing::error!("Failed to create transcription provider: {}", e);
+                                return;
+                            }
+                        }
                     }
                 }
-                _ => create_default_transcription_provider(&state.config),
+                _ => {
+                    match create_default_transcription_provider(&state.config) {
+                        Ok(provider) => provider,
+                        Err(e) => {
+                            tracing::error!("Failed to create transcription provider: {}", e);
+                            return;
+                        }
+                    }
+                }
             }
         } else {
-            create_default_transcription_provider(&state.config)
+            match create_default_transcription_provider(&state.config) {
+                Ok(provider) => provider,
+                Err(e) => {
+                    tracing::error!("Failed to create transcription provider: {}", e);
+                    return;
+                }
+            }
         }
     };
 
@@ -987,7 +1427,31 @@ pub async fn handle_audio_connection(
     let mut transcript_buffer = String::new();
     let mut chunk_index = 0i32;
     let mut last_question_gen_time = std::time::Instant::now();
-    const QUESTION_GEN_INTERVAL_SECS: u64 = 30; // Generate questions every 30 seconds
+    
+    // Get question generation interval from event settings, default to 30 seconds
+    let question_gen_interval_secs: u64 = {
+        match sqlx::query_scalar::<_, Option<i32>>(
+            "SELECT question_gen_interval_seconds FROM events WHERE id = $1"
+        )
+        .bind(event_id)
+        .fetch_one(&state.db)
+        .await {
+            Ok(Some(interval)) => {
+                // Validate range (10-300 seconds)
+                if interval >= 10 && interval <= 300 {
+                    interval as u64
+                } else {
+                    tracing::warn!("Invalid question_gen_interval_seconds {} for event {}, using default 30", interval, event_id);
+                    30
+                }
+            }
+            Ok(None) => 30, // Use default if NULL
+            Err(e) => {
+                tracing::warn!("Failed to fetch question_gen_interval_seconds for event {}: {}, using default 30", event_id, e);
+                30
+            }
+        }
+    };
 
     // Get broadcast receiver for this event to send transcript updates
     let mut event_rx = state.hub.get_or_create_event_session(event_id).await;
@@ -1081,10 +1545,10 @@ pub async fn handle_audio_connection(
                                     text: result.text.clone(),
                                     is_final: true,
                                 };
-                                state.hub.broadcast_to_event(event_id, &serde_json::to_value(&transcript_msg).unwrap()).await;
+                                broadcast_ws_message(&state.hub, event_id, transcript_msg).await;
 
                                 // Check if we should generate a question
-                                if last_question_gen_time.elapsed().as_secs() >= QUESTION_GEN_INTERVAL_SECS {
+                                if last_question_gen_time.elapsed().as_secs() >= question_gen_interval_secs {
                                     last_question_gen_time = std::time::Instant::now();
                                     
                                     // Get previous transcript context
@@ -1102,38 +1566,88 @@ pub async fn handle_audio_connection(
                                     .unwrap_or_default();
 
                                     // Generate question using question generation service
-                                    let question_service = crate::services::question_gen::QuestionGenerationService::new(
-                                        state.db.clone(),
-                                        create_default_ai_provider(&state.config).unwrap_or_else(|_| {
+                                    // Try to get user's Ollama model preference
+                                    let ollama_model = {
+                                        let user_settings = sqlx::query_scalar::<_, Option<String>>(
+                                            "SELECT ollama_model FROM user_ai_settings WHERE user_id = $1"
+                                        )
+                                        .bind(host_id)
+                                        .fetch_optional(&state.db)
+                                        .await
+                                        .ok()
+                                        .flatten()
+                                        .flatten();
+                                        
+                                        user_settings.unwrap_or_else(|| state.config.ollama_model.clone())
+                                    };
+                                    
+                                    // Create AI provider with proper error handling
+                                    let ai_provider = match create_default_ai_provider(&state.config) {
+                                        Ok(provider) => provider,
+                                        Err(e) => {
+                                            tracing::error!("Failed to create default AI provider: {}", e);
+                                            // Only fall back to Ollama if base URL is configured and non-empty
+                                            if state.config.ollama_base_url.is_empty() {
+                                                tracing::error!("Cannot fall back to Ollama: base URL is not configured");
+                                                // Send error to client and skip question generation
+                                                let error_msg = crate::ws::messages::AudioServerMessage::TranscriptionError {
+                                                    error: format!("AI provider configuration error: {}. Please configure an AI provider in settings.", e),
+                                                };
+                                                broadcast_ws_message(&state.hub, event_id, error_msg).await;
+                                                continue; // Skip this question generation attempt
+                                            }
+                                            tracing::error!("Falling back to Ollama provider at {} with model {}", state.config.ollama_base_url, ollama_model);
                                             Box::new(OllamaProvider::new(
                                                 state.config.ollama_base_url.clone(),
-                                                "llama2".to_string(),
-                                            ))
-                                        }),
+                                                ollama_model,
+                                            )) as Box<dyn AIProvider>
+                                        }
+                                    };
+                                    
+                                    let question_service = crate::services::question_gen::QuestionGenerationService::new(
+                                        state.db.clone(),
+                                        ai_provider,
                                     );
 
-                                    if let Ok(Some(generated)) = question_service.analyze_transcript(
+                                    match question_service.analyze_transcript(
                                         segment_id,
                                         &context_result,
                                         &result.text,
                                     ).await {
-                                        // Store question if quality is good
-                                        if generated.quality_score > 0.6 {
-                                            if let Ok(qid) = question_service.store_question(
-                                                segment_id,
-                                                &generated.question,
-                                                &generated.correct_answer,
-                                                &generated.source_transcript,
-                                                generated.quality_score,
-                                            ).await {
-                                                // Broadcast question generated
-                                                let question_msg = crate::ws::messages::AudioServerMessage::QuestionGenerated {
-                                                    question: generated.question,
-                                                    correct_answer: generated.correct_answer,
-                                                    source_transcript: generated.source_transcript,
-                                                };
-                                                state.hub.broadcast_to_event(event_id, &serde_json::to_value(&question_msg).unwrap()).await;
+                                        Ok(Some(generated)) => {
+                                            // Store question if quality is good
+                                            if generated.quality_score > 0.6 {
+                                                if let Ok(qid) = question_service.store_question(
+                                                    segment_id,
+                                                    &generated.question,
+                                                    &generated.correct_answer,
+                                                    &generated.source_transcript,
+                                                    generated.quality_score,
+                                                ).await {
+                                                    // Broadcast question generated
+                                                    let question_msg = crate::ws::messages::AudioServerMessage::QuestionGenerated {
+                                                        question: generated.question,
+                                                        correct_answer: generated.correct_answer,
+                                                        source_transcript: generated.source_transcript,
+                                                    };
+                                                    broadcast_ws_message(&state.hub, event_id, question_msg).await;
+                                                } else {
+                                                    tracing::error!("Failed to store generated question for segment {}", segment_id);
+                                                }
+                                            } else {
+                                                tracing::debug!("Generated question quality score {} below threshold 0.6", generated.quality_score);
                                             }
+                                        }
+                                        Ok(None) => {
+                                            tracing::debug!("Question generation returned None for segment {}", segment_id);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Question generation failed for segment {}: {}", segment_id, e);
+                                            // Send error message to client via WebSocket
+                                            let error_msg = crate::ws::messages::AudioServerMessage::TranscriptionError {
+                                                error: format!("Failed to generate question: {}", e),
+                                            };
+                                            broadcast_ws_message(&state.hub, event_id, error_msg).await;
                                         }
                                     }
                                 }
@@ -1143,7 +1657,7 @@ pub async fn handle_audio_connection(
                                     text: result.text,
                                     is_final: false,
                                 };
-                                state.hub.broadcast_to_event(event_id, &serde_json::to_value(&transcript_msg).unwrap()).await;
+                                broadcast_ws_message(&state.hub, event_id, transcript_msg).await;
                             }
                         }
                     }
@@ -1152,7 +1666,7 @@ pub async fn handle_audio_connection(
                         let error_msg = crate::ws::messages::AudioServerMessage::TranscriptionError {
                             error: format!("Transcription failed: {}", e),
                         };
-                        let _ = tx.send(serde_json::to_string(&error_msg).unwrap());
+                        send_ws_message(&tx, error_msg).await;
                     }
                 }
             }
@@ -1177,36 +1691,59 @@ pub async fn handle_audio_connection(
 }
 
 /// Create default transcription provider from config
-fn create_default_transcription_provider(config: &crate::config::Config) -> Box<dyn crate::services::transcription::TranscriptionProvider> {
+fn create_default_transcription_provider(config: &crate::config::Config) -> Result<Box<dyn crate::services::transcription::TranscriptionProvider>> {
     match config.default_stt_provider.as_str() {
         "deepgram" => {
             if let Some(api_key) = &config.deepgram_api_key {
-                Box::new(crate::services::transcription::DeepgramProvider::new(api_key.clone()))
+                if api_key.is_empty() {
+                    tracing::warn!("Deepgram API key is empty, cannot create provider");
+                    Err(crate::error::AppError::Internal("No transcription provider configured: Deepgram API key is missing".to_string()))
+                } else {
+                    Ok(Box::new(crate::services::transcription::DeepgramProvider::new(api_key.clone())))
+                }
             } else {
-                // Fallback
-                Box::new(crate::services::transcription::DeepgramProvider::new("".to_string()))
+                tracing::warn!("Deepgram API key not configured, cannot create provider");
+                Err(crate::error::AppError::Internal("No transcription provider configured: Deepgram API key is missing".to_string()))
             }
         }
         "whisper" => {
             if let Some(api_key) = &config.openai_api_key {
-                Box::new(crate::services::transcription::WhisperProvider::new(api_key.clone()))
+                if api_key.is_empty() {
+                    tracing::warn!("OpenAI API key is empty, cannot create Whisper provider");
+                    Err(crate::error::AppError::Internal("No transcription provider configured: OpenAI API key is missing".to_string()))
+                } else {
+                    Ok(Box::new(crate::services::transcription::WhisperProvider::new(api_key.clone())))
+                }
             } else {
-                Box::new(crate::services::transcription::WhisperProvider::new("".to_string()))
+                tracing::warn!("OpenAI API key not configured, cannot create Whisper provider");
+                Err(crate::error::AppError::Internal("No transcription provider configured: OpenAI API key is missing".to_string()))
             }
         }
         "assemblyai" => {
             if let Some(api_key) = &config.assemblyai_api_key {
-                Box::new(crate::services::transcription::AssemblyAIProvider::new(api_key.clone()))
+                if api_key.is_empty() {
+                    tracing::warn!("AssemblyAI API key is empty, cannot create provider");
+                    Err(crate::error::AppError::Internal("No transcription provider configured: AssemblyAI API key is missing".to_string()))
+                } else {
+                    Ok(Box::new(crate::services::transcription::AssemblyAIProvider::new(api_key.clone())))
+                }
             } else {
-                Box::new(crate::services::transcription::AssemblyAIProvider::new("".to_string()))
+                tracing::warn!("AssemblyAI API key not configured, cannot create provider");
+                Err(crate::error::AppError::Internal("No transcription provider configured: AssemblyAI API key is missing".to_string()))
             }
         }
         _ => {
             // Default to Deepgram
             if let Some(api_key) = &config.deepgram_api_key {
-                Box::new(crate::services::transcription::DeepgramProvider::new(api_key.clone()))
+                if api_key.is_empty() {
+                    tracing::warn!("Default Deepgram API key is empty, cannot create provider");
+                    Err(crate::error::AppError::Internal("No transcription provider configured: Deepgram API key is missing".to_string()))
+                } else {
+                    Ok(Box::new(crate::services::transcription::DeepgramProvider::new(api_key.clone())))
+                }
             } else {
-                Box::new(crate::services::transcription::DeepgramProvider::new("".to_string()))
+                tracing::warn!("No default transcription provider configured");
+                Err(crate::error::AppError::Internal("No transcription provider configured: No API keys available".to_string()))
             }
         }
     }

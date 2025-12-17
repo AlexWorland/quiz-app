@@ -5,7 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { QuestionDisplay } from '@/components/quiz/QuestionDisplay'
 import { AnswerSelection } from '@/components/quiz/AnswerSelection'
-import { QuizResults, type AnswerDistribution } from '@/components/quiz/QuizResults'
+import { QuizResults, type AnswerDistribution, type LeaderboardEntry as QuizLeaderboardEntry } from '@/components/quiz/QuizResults'
 import { SegmentLeaderboard } from '@/components/leaderboard/SegmentLeaderboard'
 import { MasterLeaderboard } from '@/components/leaderboard/MasterLeaderboard'
 import { FlappyGame } from '@/components/flappy/FlappyGame'
@@ -46,6 +46,8 @@ export function EventParticipantPage() {
   const [results, setResults] = useState<{
     correctAnswer: string
     distribution: AnswerDistribution[]
+    segmentLeaderboard: QuizLeaderboardEntry[]
+    eventLeaderboard: QuizLeaderboardEntry[]
   } | null>(null)
 
   const [gameStarted, setGameStarted] = useState(false)
@@ -109,6 +111,8 @@ export function EventParticipantPage() {
         setResults({
           correctAnswer: msg.correct_answer,
           distribution: msg.distribution,
+          segmentLeaderboard: msg.segment_leaderboard,
+          eventLeaderboard: msg.event_leaderboard,
         })
         setShowResults(true)
       } else if (msg.type === 'scores_update') {
@@ -266,6 +270,8 @@ export function EventParticipantPage() {
                 distribution={results.distribution}
                 userAnswer={userAnswer}
                 pointsEarned={pointsEarned}
+                segmentLeaderboard={results.segmentLeaderboard}
+                eventLeaderboard={results.eventLeaderboard}
               />
             )}
 

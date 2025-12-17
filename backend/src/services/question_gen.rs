@@ -51,44 +51,106 @@ impl QuestionGenerationService {
     }
 
     /// Calculate quality score for a generated question (0.0 to 1.0)
+    /// 
+    /// Current implementation uses heuristic-based scoring. This approach:
+    /// - Is fast and doesn't require additional API calls
+    /// - Works offline/without external dependencies
+    /// - Provides reasonable quality filtering
+    /// 
+    /// Limitations:
+    /// - Cannot detect subtle quality issues (ambiguity, poor phrasing)
+    /// - Cannot verify factual accuracy beyond transcript matching
+    /// - May miss nuanced quality problems that AI evaluation could catch
+    /// 
+    /// TODO: Future enhancement - AI-based quality evaluation
+    /// - Use a separate AI call to evaluate question quality
+    /// - Check for: clarity, ambiguity, appropriateness, answerability
+    /// - Consider adding a feature flag: `ENABLE_AI_QUALITY_SCORING`
+    /// - Could use a smaller/faster model for cost efficiency
     async fn calculate_quality_score(
         &self,
         question: &GeneratedQuestion,
         transcript: &str,
     ) -> Result<f64> {
-        // Simple heuristic-based scoring
-        // In production, this could use another AI call to evaluate quality
-        
         let mut score: f64 = 0.5; // Base score
 
         // Check question length (good questions are 10-100 chars)
         let q_len = question.question.len();
         if q_len >= 10 && q_len <= 100 {
             score += 0.1;
+        } else if q_len < 10 {
+            score -= 0.1; // Too short
+        } else if q_len > 150 {
+            score -= 0.05; // Too long
         }
 
         // Check answer length (good answers are 1-50 chars)
         let a_len = question.correct_answer.len();
         if a_len >= 1 && a_len <= 50 {
             score += 0.1;
+        } else if a_len == 0 {
+            score -= 0.2; // Empty answer
+        } else if a_len > 100 {
+            score -= 0.1; // Answer too long (likely not a good quiz answer)
         }
 
-        // Check if question contains question words
+        // Check if question contains question words (indicates proper question format)
         let question_lower = question.question.to_lowercase();
-        if question_lower.contains("what")
+        let has_question_word = question_lower.contains("what")
             || question_lower.contains("who")
             || question_lower.contains("when")
             || question_lower.contains("where")
             || question_lower.contains("why")
             || question_lower.contains("how")
-        {
+            || question_lower.contains("which")
+            || question_lower.contains("whose");
+        if has_question_word {
             score += 0.1;
         }
 
-        // Check if answer appears in transcript (higher confidence)
-        if transcript.to_lowercase().contains(&question.correct_answer.to_lowercase()) {
-            score += 0.2;
+        // Check if question ends with question mark
+        if question.question.trim_end().ends_with('?') {
+            score += 0.05;
         }
+
+        // Check if answer is not too similar to question (avoids trivial questions)
+        let answer_lower = question.correct_answer.to_lowercase();
+        let question_words: Vec<&str> = question_lower.split_whitespace().collect();
+        let answer_words: Vec<&str> = answer_lower.split_whitespace().collect();
+        let common_words: usize = question_words.iter()
+            .filter(|w| answer_words.contains(w) && w.len() > 3) // Only count words longer than 3 chars
+            .count();
+        let similarity_ratio = if question_words.len() > 0 {
+            common_words as f64 / question_words.len() as f64
+        } else {
+            0.0
+        };
+        if similarity_ratio > 0.5 {
+            score -= 0.15; // Answer too similar to question (likely trivial)
+        }
+
+        // Check if answer appears in transcript (higher confidence in correctness)
+        let transcript_lower = transcript.to_lowercase();
+        if transcript_lower.contains(&answer_lower) {
+            score += 0.2;
+        } else {
+            // Answer not found in transcript - might be inferred or incorrect
+            score -= 0.1;
+        }
+
+        // Basic grammatical check: question should not start with lowercase (unless it's a continuation)
+        let first_char = question.question.chars().next().unwrap_or(' ');
+        if first_char.is_lowercase() && !question_lower.starts_with("which") {
+            score -= 0.05; // Likely incomplete or poorly formatted
+        }
+
+        // Log quality score for monitoring
+        tracing::debug!(
+            "Question quality score: {:.2} for question: '{}' (answer: '{}')",
+            score.min(1.0).max(0.0),
+            question.question,
+            question.correct_answer
+        );
 
         Ok(score.min(1.0).max(0.0))
     }
