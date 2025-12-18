@@ -3,6 +3,7 @@ use reqwest::Client;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use futures::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
+use base64::{Engine as _, engine::general_purpose};
 
 /// Speech-to-text provider trait
 #[async_trait::async_trait]
@@ -362,6 +363,14 @@ struct DeepgramResponse {
     speech_final: bool,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct AssemblyAIResponse {
+    message_type: String,
+    text: String,
+    #[serde(default)]
+    confidence: f64,
+}
+
 /// Deepgram WebSocket streaming client
 ///
 /// Provides true real-time streaming transcription using Deepgram's WebSocket API.
@@ -684,6 +693,320 @@ impl DeepgramStreamingClient {
         self.receiver = None;
 
         tracing::info!("Deepgram WebSocket connection closed");
+        Ok(())
+    }
+}
+
+/// AssemblyAI WebSocket streaming client
+///
+/// Provides real-time streaming transcription using AssemblyAI's WebSocket API.
+/// This implementation maintains a persistent WebSocket connection and streams audio
+/// chunks as they arrive, receiving partial and final transcription results.
+///
+/// # Architecture
+///
+/// The streaming client uses a WebSocket connection to send audio chunks and receive
+/// transcription results in real-time. Key characteristics:
+///
+/// - **Persistent connection**: Single WebSocket connection for entire session
+/// - **Base64 encoding**: Audio chunks encoded as base64 and sent as JSON messages
+/// - **Interim results**: Receive partial transcripts (PartialTranscript) before speech is finished
+/// - **Final results**: Receive completed transcripts (FinalTranscript) for finished segments
+///
+/// # Message Flow
+///
+/// 1. Client connects to `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000`
+/// 2. Authentication via `Authorization: {api_key}` header (no "Token" prefix)
+/// 3. Audio chunks sent as JSON text messages: `{"audio_data": "<base64>"}`
+/// 4. Transcription results received as JSON messages with structure:
+///    ```json
+///    {
+///      "message_type": "PartialTranscript" | "FinalTranscript",
+///      "text": "transcript text",
+///      "confidence": 0.95
+///    }
+///    ```
+/// 5. Session terminated by sending: `{"terminate_session": true}`
+///
+/// # Usage Example
+///
+/// ```rust,no_run
+/// use quiz_backend::services::transcription::AssemblyAIStreamingClient;
+///
+/// async fn example() -> Result<(), Box<dyn std::error::Error>> {
+///     let mut client = AssemblyAIStreamingClient::new("your-api-key".to_string());
+///
+///     // Establish WebSocket connection
+///     client.connect().await?;
+///
+///     // Send audio chunks
+///     let audio_chunk = vec![/* audio bytes */];
+///     client.send_audio(audio_chunk).await?;
+///
+///     // Receive transcription results
+///     while let Some(result) = client.receive_transcript().await? {
+///         println!("Transcript: {} (final: {})", result.text, result.is_final);
+///         if result.is_final {
+///             break;
+///         }
+///     }
+///
+///     // Close connection
+///     client.close().await?;
+///     Ok(())
+/// }
+/// ```
+pub struct AssemblyAIStreamingClient {
+    api_key: String,
+    ws_url: String,
+    sender: Option<futures::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, Message>>,
+    receiver: Option<futures::stream::SplitStream<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>>>,
+}
+
+impl AssemblyAIStreamingClient {
+    /// Create a new AssemblyAI streaming client
+    ///
+    /// # Arguments
+    ///
+    /// * `api_key` - AssemblyAI API key for authentication
+    ///
+    /// # Panics
+    ///
+    /// Panics if the API key is empty
+    pub fn new(api_key: String) -> Self {
+        if api_key.is_empty() {
+            tracing::error!("AssemblyAIStreamingClient created with empty API key");
+            panic!("AssemblyAIStreamingClient requires a non-empty API key");
+        }
+
+        // AssemblyAI WebSocket endpoint with sample rate parameter
+        let ws_url = "wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000".to_string();
+
+        Self {
+            api_key,
+            ws_url,
+            sender: None,
+            receiver: None,
+        }
+    }
+
+    /// Establish WebSocket connection to AssemblyAI
+    ///
+    /// This method creates a WebSocket connection with authentication and splits
+    /// the stream into sender and receiver halves for bidirectional communication.
+    ///
+    /// # Authentication
+    ///
+    /// AssemblyAI uses HTTP header-based authentication with the format:
+    /// `Authorization: {api_key}` (no "Token" prefix)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Connection to AssemblyAI fails (network issues, DNS errors)
+    /// - Authentication fails (invalid API key)
+    /// - Already connected (call close() first)
+    pub async fn connect(&mut self) -> Result<()> {
+        if self.sender.is_some() || self.receiver.is_some() {
+            return Err(AppError::Internal(
+                "WebSocket already connected. Call close() first.".to_string(),
+            ));
+        }
+
+        tracing::info!("Connecting to AssemblyAI WebSocket at {}", self.ws_url);
+
+        // Build WebSocket request with authentication header
+        let request = http::Request::builder()
+            .uri(&self.ws_url)
+            .header("Authorization", &self.api_key)
+            .body(())
+            .map_err(|e| AppError::Internal(format!("Failed to build WebSocket request: {}", e)))?;
+
+        // Connect to WebSocket endpoint
+        let (ws_stream, response) = connect_async(request)
+            .await
+            .map_err(|e| AppError::Internal(format!("WebSocket connection failed: {}", e)))?;
+
+        // Check response status (should be 101 Switching Protocols)
+        let status = response.status();
+        if status != 101 {
+            return Err(AppError::Internal(format!(
+                "WebSocket handshake failed with status: {}",
+                status
+            )));
+        }
+
+        tracing::info!("Connected to AssemblyAI WebSocket successfully");
+
+        // Split stream into sender and receiver for independent operations
+        let (sender, receiver) = ws_stream.split();
+        self.sender = Some(sender);
+        self.receiver = Some(receiver);
+
+        Ok(())
+    }
+
+    /// Send audio chunk to AssemblyAI for transcription
+    ///
+    /// Audio chunks are base64 encoded and sent as JSON text messages in the format:
+    /// `{"audio_data": "<base64_encoded_audio>"}`
+    ///
+    /// AssemblyAI processes the audio stream and returns transcription results asynchronously.
+    ///
+    /// # Arguments
+    ///
+    /// * `audio_chunk` - Audio data bytes (16kHz PCM or compatible format)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not connected (call connect() first)
+    /// - WebSocket send fails (connection dropped)
+    pub async fn send_audio(&mut self, audio_chunk: Vec<u8>) -> Result<()> {
+        let sender = self
+            .sender
+            .as_mut()
+            .ok_or_else(|| AppError::Internal("Not connected. Call connect() first.".to_string()))?;
+
+        tracing::debug!("Sending audio chunk of {} bytes", audio_chunk.len());
+
+        // Encode audio as base64
+        let encoded = general_purpose::STANDARD.encode(&audio_chunk);
+
+        // Create JSON message with base64 encoded audio
+        let message = serde_json::json!({
+            "audio_data": encoded
+        });
+
+        let message_text = serde_json::to_string(&message)
+            .map_err(|e| AppError::Internal(format!("Failed to serialize audio message: {}", e)))?;
+
+        // Send as text WebSocket message
+        sender
+            .send(Message::Text(message_text))
+            .await
+            .map_err(|e| AppError::Internal(format!("Failed to send audio chunk: {}", e)))?;
+
+        Ok(())
+    }
+
+    /// Receive transcription result from AssemblyAI
+    ///
+    /// This method reads the next WebSocket message from AssemblyAI and parses it
+    /// into a `TranscriptionResult`. AssemblyAI sends two types of results:
+    ///
+    /// - **PartialTranscript**: Interim transcripts while user is still speaking
+    ///   (is_final=false). These can change as more audio is processed.
+    /// - **FinalTranscript**: Completed transcripts for finished speech segments
+    ///   (is_final=true). These are the authoritative transcripts.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(result))` - Transcription result received
+    /// - `Ok(None)` - Connection closed normally
+    /// - `Err(...)` - Error occurred
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not connected (call connect() first)
+    /// - JSON parsing fails (malformed response)
+    /// - WebSocket error (connection dropped)
+    pub async fn receive_transcript(&mut self) -> Result<Option<TranscriptionResult>> {
+        let receiver = self.receiver.as_mut().ok_or_else(|| {
+            AppError::Internal("Not connected. Call connect() first.".to_string())
+        })?;
+
+        // Read next WebSocket message
+        match receiver.next().await {
+            Some(Ok(message)) => match message {
+                Message::Text(text) => {
+                    tracing::debug!("Received text message: {}", text);
+
+                    // Parse JSON response from AssemblyAI
+                    let response: AssemblyAIResponse = serde_json::from_str(&text).map_err(|e| {
+                        AppError::Internal(format!("Failed to parse AssemblyAI response: {}", e))
+                    })?;
+
+                    // Skip empty transcripts
+                    if response.text.is_empty() {
+                        tracing::debug!("Skipping empty transcript");
+                        return self.receive_transcript().await;
+                    }
+
+                    // Determine if this is a final transcript based on message_type
+                    let is_final = response.message_type == "FinalTranscript";
+
+                    Ok(Some(TranscriptionResult {
+                        text: response.text,
+                        is_final,
+                        confidence: Some(response.confidence as f32),
+                    }))
+                }
+                Message::Close(frame) => {
+                    tracing::info!("WebSocket closed by server: {:?}", frame);
+                    Ok(None)
+                }
+                Message::Ping(_) | Message::Pong(_) => {
+                    // Automatically handled by tungstenite, just continue
+                    self.receive_transcript().await
+                }
+                _ => {
+                    tracing::debug!("Ignoring non-text message");
+                    self.receive_transcript().await
+                }
+            },
+            Some(Err(e)) => {
+                tracing::error!("WebSocket error: {}", e);
+                Err(AppError::Internal(format!("WebSocket error: {}", e)))
+            }
+            None => {
+                tracing::info!("WebSocket stream ended");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Close the WebSocket connection
+    ///
+    /// Sends a terminate_session message to AssemblyAI and cleans up connection resources.
+    /// AssemblyAI requires sending `{"terminate_session": true}` instead of a standard
+    /// WebSocket close frame.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Not connected (already closed)
+    /// - Terminate message send fails
+    pub async fn close(&mut self) -> Result<()> {
+        if let Some(mut sender) = self.sender.take() {
+            tracing::info!("Closing AssemblyAI WebSocket connection");
+
+            // Create terminate session message
+            let terminate_message = serde_json::json!({
+                "terminate_session": true
+            });
+
+            let message_text = serde_json::to_string(&terminate_message)
+                .map_err(|e| AppError::Internal(format!("Failed to serialize terminate message: {}", e)))?;
+
+            // Send terminate session message
+            sender
+                .send(Message::Text(message_text))
+                .await
+                .map_err(|e| AppError::Internal(format!("Failed to send terminate message: {}", e)))?;
+
+            // Close the sender
+            sender
+                .close()
+                .await
+                .map_err(|e| AppError::Internal(format!("Failed to close WebSocket: {}", e)))?;
+        }
+
+        // Drop receiver to complete cleanup
+        self.receiver = None;
+
+        tracing::info!("AssemblyAI WebSocket connection closed");
         Ok(())
     }
 }

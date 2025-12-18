@@ -39,6 +39,13 @@ pub struct Config {
     /// Production consideration: Enable for high-volume events to reduce latency.
     pub enable_streaming_transcription: bool,
 
+    // AI Quality Scoring
+    /// Enable AI-based quality scoring for generated questions.
+    /// When enabled, uses AI to evaluate question quality (clarity, answerability, factual accuracy).
+    /// When disabled, uses only heuristic-based scoring.
+    /// Adds additional API costs but provides more accurate quality assessment.
+    pub enable_ai_quality_scoring: bool,
+
     // Server
     pub backend_port: u16,
     pub frontend_url: String,
@@ -106,6 +113,12 @@ impl Config {
             assemblyai_api_key: std::env::var("ASSEMBLYAI_API_KEY").ok()
                 .filter(|s| !s.is_empty()),
             enable_streaming_transcription: std::env::var("ENABLE_STREAMING_TRANSCRIPTION")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
+
+            // AI Quality Scoring
+            enable_ai_quality_scoring: std::env::var("ENABLE_AI_QUALITY_SCORING")
                 .unwrap_or_else(|_| "false".to_string())
                 .parse()
                 .unwrap_or(false),
