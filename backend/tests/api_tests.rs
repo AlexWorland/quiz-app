@@ -1,4 +1,5 @@
 use axum_test::TestServer;
+#[cfg(test)]
 use quiz_backend::{create_app, test_utils, AppState};
 use std::sync::Arc;
 use aws_sdk_s3::Client as S3Client;
@@ -31,7 +32,7 @@ async fn test_health_check() {
 
     assert_eq!(response.status_code(), 200);
     let body: serde_json::Value = response.json();
-    assert_eq!(body["status"], "ok");
+    assert_eq!(body["status"], "healthy");
 }
 
 #[tokio::test]
@@ -56,7 +57,7 @@ async fn test_register_user() {
     let response = server
         .post("/api/auth/register")
         .json(&serde_json::json!({
-            "username": "testuser",
+            "username": "testuser_register",
             "password": "testpass123",
             "avatar_url": "😀",
             "avatar_type": "emoji"
@@ -66,7 +67,7 @@ async fn test_register_user() {
     assert_eq!(response.status_code(), 200);
     let body: serde_json::Value = response.json();
     assert!(body["token"].is_string());
-    assert_eq!(body["user"]["username"], "testuser");
+    assert_eq!(body["user"]["username"], "testuser_register");
 }
 
 #[tokio::test]
@@ -92,7 +93,7 @@ async fn test_login_user() {
     let register_response = server
         .post("/api/auth/register")
         .json(&serde_json::json!({
-            "username": "testuser",
+            "username": "testuser_login",
             "password": "testpass123",
             "avatar_url": "😀",
             "avatar_type": "emoji"
@@ -105,7 +106,7 @@ async fn test_login_user() {
     let login_response = server
         .post("/api/auth/login")
         .json(&serde_json::json!({
-            "username": "testuser",
+            "username": "testuser_login",
             "password": "testpass123"
         }))
         .await;
@@ -113,7 +114,7 @@ async fn test_login_user() {
     assert_eq!(login_response.status_code(), 200);
     let body: serde_json::Value = login_response.json();
     assert!(body["token"].is_string());
-    assert_eq!(body["user"]["username"], "testuser");
+    assert_eq!(body["user"]["username"], "testuser_login");
 }
 
 #[tokio::test]
@@ -139,20 +140,21 @@ async fn test_create_event() {
     let register_response = server
         .post("/api/auth/register")
         .json(&serde_json::json!({
-            "username": "testuser",
+            "username": "testuser_event",
             "password": "testpass123",
             "avatar_url": "😀",
             "avatar_type": "emoji"
         }))
         .await;
 
+    assert_eq!(register_response.status_code(), 200);
     let register_body: serde_json::Value = register_response.json();
     let token = register_body["token"].as_str().unwrap();
 
     // Create event
     let response = server
         .post("/api/quizzes")
-        .add_header("Authorization", format!("Bearer {}", token))
+        .add_header(axum::http::HeaderName::from_static("authorization"), axum::http::HeaderValue::from_str(&format!("Bearer {}", token)).unwrap())
         .json(&serde_json::json!({
             "title": "Test Quiz",
             "mode": "normal",

@@ -14,11 +14,14 @@ export interface User {
 interface AuthStore {
   user: User | null
   token: string | null
+  deviceId: string | null
+  sessionToken: string | null
   isAuthenticated: boolean
   login: (user: User, token: string) => void
   logout: () => void
   setUser: (user: User) => void
   updateUser: (updates: Partial<User>) => void
+  setDeviceInfo: (deviceId: string, sessionToken: string) => void
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -26,6 +29,8 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       user: null,
       token: null,
+      deviceId: null,
+      sessionToken: null,
       isAuthenticated: false,
       login: (user, token) =>
         set({
@@ -37,6 +42,8 @@ export const useAuthStore = create<AuthStore>()(
         set({
           user: null,
           token: null,
+          deviceId: null,
+          sessionToken: null,
           isAuthenticated: false,
         }),
       setUser: (user) => set({ user }),
@@ -44,10 +51,11 @@ export const useAuthStore = create<AuthStore>()(
         set((state) => ({
           user: state.user ? { ...state.user, ...updates } : null,
         })),
+      setDeviceInfo: (deviceId, sessionToken) => set({ deviceId, sessionToken }),
     }),
     {
       name: 'auth-store',
-      partialize: (state) => ({ user: state.user, token: state.token }),
+      partialize: (state) => ({ user: state.user, token: state.token, deviceId: state.deviceId, sessionToken: state.sessionToken }),
     }
   )
 )

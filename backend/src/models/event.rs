@@ -140,3 +140,18 @@ pub struct UpdateSegmentRequest {
     pub title: Option<String>,
     pub status: Option<String>,
 }
+
+/// Event participant database model
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct EventParticipant {
+    pub id: Uuid,
+    pub event_id: Uuid,
+    pub user_id: Uuid,
+    pub total_score: i32,
+    pub joined_at: DateTime<Utc>,
+    pub device_id: Uuid,
+    pub session_token: Option<String>,
+    pub join_timestamp: Option<DateTime<Utc>>,
+    pub last_heartbeat: Option<DateTime<Utc>>,
+    pub join_status: String, // NEW: 'joined', 'waiting_for_segment', 'active_in_quiz', 'segment_complete'
+}

@@ -2,7 +2,7 @@
 
 **Priority:** 🟡 HIGH
 **Effort:** 0.5 hours
-**Status:** Pending
+**Status:** Completed
 
 ---
 
@@ -66,12 +66,12 @@ DROP COLUMN qr_locked;
 
 ## Acceptance Criteria
 
-- [ ] Migration files created
-- [ ] Migration runs successfully
-- [ ] `qr_locked`, `qr_locked_at`, `qr_locked_by` columns added to events table
-- [ ] Index created for qr_locked column
-- [ ] Down migration reverts changes
-- [ ] No compiler errors
+- [x] Migration files created
+- [x] Migration runs successfully
+- [x] `qr_locked`, `qr_locked_at`, `qr_locked_by` columns added to events table
+- [x] Index created for qr_locked column
+- [x] Down migration reverts changes
+- [x] No compiler errors
 
 ## Dependencies
 
@@ -87,3 +87,10 @@ DROP COLUMN qr_locked;
 - `qr_locked_by` tracks which user locked it (for audit trail)
 - `qr_locked_at` updates on each lock/unlock
 - Default FALSE allows joining until explicitly locked
+
+## Implementation Details
+
+**Completed:** 2025-12-18
+- Migration file: `backend/migrations/20251219072001_qr_lock_state.sql`
+- Used SQLx reversible migration format with `-- +migrate Up` and `-- +migrate Down` markers
+- All unit tests pass, code compiles successfully

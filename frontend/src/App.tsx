@@ -6,7 +6,7 @@ import { HomePage } from './pages/Home'
 import { EventsPage } from './pages/Events'
 import { EventDetailPage } from './pages/EventDetail'
 import { EventPage } from './pages/EventPage'
-import { JoinEventPage } from './pages/JoinEvent'
+import { JoinEvent } from './pages/JoinEvent'
 import { TestRunnerPage } from './pages/TestRunner'
 import { ProtectedRoute } from './components/ProtectedRoute'
 
@@ -40,7 +40,7 @@ function App() {
           path="/join"
           element={
             <ProtectedRoute>
-              <JoinEventPage />
+              <JoinEvent />
             </ProtectedRoute>
           }
         />

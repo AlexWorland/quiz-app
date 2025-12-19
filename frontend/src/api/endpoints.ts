@@ -138,6 +138,16 @@ export const deleteEvent = (id: string) =>
 export const getEventByJoinCode = (code: string) =>
   client.get<Event>(`/events/join/${code}`)
 
+// Join event with device fingerprint
+export interface JoinEventResponse {
+  eventId: string
+  deviceId: string
+  sessionToken: string
+}
+
+export const joinEvent = (code: string, deviceFingerprint: string) =>
+  client.post<JoinEventResponse>('/events/join', { code, deviceFingerprint })
+
 export const createSegment = (eventId: string, data: CreateSegmentRequest) =>
   client.post<Segment>(`/quizzes/${eventId}/questions`, data)
 

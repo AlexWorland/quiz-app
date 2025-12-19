@@ -78,3 +78,12 @@ docker compose down
 docker compose up -d
 ```
 
+## Backend Test Database Reset
+
+For backend integration tests (e.g., `backend/tests/api_tests.rs`), reset the test database inside Postgres before running to avoid leftover state or unique constraint conflicts:
+
+```bash
+docker compose exec postgres psql -U quiz -c "DROP DATABASE IF EXISTS quiz_test;"
+docker compose exec postgres psql -U quiz -c "CREATE DATABASE quiz_test;"
+docker compose run --rm -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend cargo test
+```

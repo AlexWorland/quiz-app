@@ -1,66 +1,30 @@
-# AGENTS.md - Agent Guidelines for Presentation Quiz App
+# Repository Guidelines
 
-## Project Overview
-Real-time multiplayer quiz application for multi-presenter events with live audio transcription and AI-powered question generation. Two modes: Traditional (pre-written + AI fake answers) and Listen Only (AI from live audio).
+## Project Structure & Modules
+- `backend/`: Rust (Axum) API. `src/` holds routes, services (AI/transcription/quiz), ws hubs, auth, config/db/error helpers; `migrations/` for SQLx; integration tests in `tests/api_tests.rs`; Dockerfile.* for container builds.
+- `frontend/`: React + TypeScript + Vite. `src/` split into `pages/`, `components/`, `hooks/`, `store/` (Zustand), `api/`, `utils/`, `types/`; unit tests live in `__tests__` folders with shared helpers in `src/test`.
+- `scripts/` for automation; `work-items/`, `ARCHITECTURE.md`, and `IMPLEMENTATION_GUIDE.md` capture feature plans and rationale.
 
-## Build/Lint/Test Commands
+## Build, Test & Development Commands
+- Docker stack: from repo root `docker-compose up -d` (postgres, minio, backend, frontend). `docker-compose down -v` resets volumes; `docker-compose logs -f backend` tails API.
+- Backend: `cd backend && cargo build` (compile), `cargo run` (dev server with `.env`), `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt`. Migrations via `sqlx migrate run`.
+- Frontend: `cd frontend && npm install`; `npm run dev` (Vite), `npm run build` (type-check + bundle), `npm run lint`, `npm run type-check`, `npm run test` or `npm run test:coverage` (Vitest), `npm run test:e2e` (Playwright; start backend + Vite first).
 
-### Backend (Rust)
-```bash
-cd backend
-cargo build                    # Build
-cargo test                     # Run all tests
-cargo test test_name           # Run single test
-cargo check                    # Type check without build
-cargo fmt                      # Format code
-cargo clippy                   # Lint
-```
+## Coding Style & Naming Conventions
+- Rust: format with `cargo fmt`; keep files/modules snake_case; avoid `unwrap` in handlers—propagate errors through `AppError`; prefer tracing spans/logs for request flow.
+- TypeScript/React: ESLint + TS strictness gate merges; components/pages PascalCase; hooks in `hooks/` prefixed `use`; tests in `__tests__` alongside features; place shared mocks in `src/test/mocks`. Styling is Tailwind-first; keep primitives in `components/common`.
 
-### Frontend (React/TypeScript)
-```bash
-cd frontend
-npm run build                  # Build
-npm run type-check             # Type check without build
-npm run lint                   # Lint
-npm test                       # Run unit tests
-npm run test:watch             # Watch mode
-npm run test:e2e               # Run E2E tests
-```
+## Testing Guidelines
+- Backend integration tests in `backend/tests/api_tests.rs` using `axum-test`; add helpers to `backend/src/test_utils.rs`.
+- Frontend uses Vitest + Testing Library; name specs `*.test.ts[x]` inside `__tests__`. Playwright config lives at `frontend/playwright.config.ts`; ensure services running and data seeded before e2e.
+- Target meaningful coverage on new branches; prefer fixtures/mocks over real AI/STT calls.
 
-### Docker & Services
-```bash
-docker-compose up -d            # Start all services
-docker-compose --profile local-llm up -d  # With Ollama
-docker-compose down -v          # Stop and reset volumes
-```
+## Commit & Pull Request Guidelines
+- Commits are short, imperative summaries (e.g., `Add presenter handoff API`); group related changes.
+- PRs should include scope summary, linked work item/issue, testing notes (commands run), and UI screenshots/video for visible changes.
+- Keep secrets out of git; copy `.env.example`, set `JWT_SECRET`, `ENCRYPTION_KEY`, provider keys locally. Highlight new env vars or migrations in PR descriptions.
 
-## Code Style Guidelines
-
-### Rust
-- Use Result<T, AppError> for error handling, never unwrap() in production
-- Use SQLx compile-time checked queries with parameterized statements
-- Follow async/await patterns with tokio, proper error propagation with ?
-- Use Arc<Mutex<>> or channels for shared state management
-- All database queries must use parameterized queries (SQLx)
-
-### TypeScript/React
-- Use TypeScript strict mode, avoid 'any' types
-- Use functional components with hooks, Zustand for global state
-- Type all API responses and WebSocket messages
-- Follow React best practices for state management
-- Use proper import organization: React → third-party → local
-
-### General
-- Include unit tests for new code, create tests if none exist
-- Ensure proper error handling and HTTP status codes for API endpoints
-- WebSocket messages must be typed and validated
-- Follow project structure: backend/src/ for Rust, frontend/src/ for React
-
-## Architecture Overview
-**Backend**: Axum + PostgreSQL + WebSocket hub for real-time updates
-**Frontend**: React + Tailwind + Zustand + custom WebSocket hooks
-**Key modules**: models/, routes/, services/, ws/ (backend) | pages/, components/, hooks/, api/ (frontend)
-
-## Environment Variables
-Required: DATABASE_URL, JWT_SECRET, ENCRYPTION_KEY, CORS_ALLOWED_ORIGINS
-Optional: ANTHROPIC_API_KEY, OPENAI_API_KEY, DEFAULT_AI_PROVIDER, MINIO_*
+## Security & Configuration
+- Never commit real API keys or JWT secrets; rotate if exposed.
+- Prefer `.env` + `docker-compose` for local dev; adjust `VITE_API_URL`/`VITE_WS_URL` if backend port differs.
+- For schema changes, run `sqlx migrate run` locally and note DB impacts for reviewers.

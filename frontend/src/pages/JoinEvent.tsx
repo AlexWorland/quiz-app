@@ -1,101 +1,77 @@
-import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Input } from '@/components/common/Input'
-import { Button } from '@/components/common/Button'
-import { eventAPI, type Event, type Segment } from '@/api/endpoints'
-import { useAuthStore } from '@/store/authStore'
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { getOrCreateDeviceFingerprint } from '../utils/deviceFingerprint';
+import { joinEvent } from '../api/endpoints';
+import { useAuthStore } from '../store/authStore';
 
-// Extended event type that may include segments
-interface EventWithSegments extends Event {
-  segments?: Segment[]
-}
+export function JoinEvent() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [error, setError] = useState<string | null>(null);
+  const setDeviceInfo = useAuthStore((state) => state.setDeviceInfo);
 
-export function JoinEventPage() {
-  const [searchParams] = useSearchParams()
-  const [code, setCode] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
-
+  // Auto-join if code in URL (for backwards compatibility during transition)
   useEffect(() => {
-    const pref = searchParams.get('code')
-    if (pref) {
-      setCode(pref.toUpperCase())
+    const codeFromUrl = searchParams.get('code');
+    if (codeFromUrl) {
+      handleJoinEvent(codeFromUrl);
     }
-  }, [searchParams])
+  }, [searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!code.trim()) return
-
+  const handleJoinEvent = async (code: string) => {
     try {
-      setLoading(true)
-      setError(null)
-      const cleaned = code.trim().toUpperCase()
-      const res = await eventAPI.getByJoinCode(cleaned)
-      const event = res.data as EventWithSegments
-
-      // Check if user is the host
-      const isHost = user && event.host_id === user.id
-
-      if (isHost) {
-        // Host goes to event management page
-        navigate(`/events/${event.id}`)
-      } else {
-        // Participant: try to find an active segment or use the first one
-        const segments = event.segments || []
-        const activeSegment = segments.find(
-          (s) => s.status === 'recording' || s.status === 'quizzing' || s.status === 'quiz_ready'
-        )
-        const firstSegment = segments[0]
-        const targetSegment = activeSegment || firstSegment
-
-        if (targetSegment) {
-          navigate(`/events/${event.id}/segments/${targetSegment.id}/participant`)
+      const deviceFingerprint = getOrCreateDeviceFingerprint();
+      const response = await joinEvent(code, deviceFingerprint);
+      setDeviceInfo(response.data.deviceId, response.data.sessionToken);
+      navigate(`/events/${response.data.eventId}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('already joined')) {
+          setError('This device has already joined this event');
+        } else if (error.message.includes('not found')) {
+          setError('Event not found. Make sure you scanned the correct QR code.');
         } else {
-          // No segments yet - still navigate to event detail for now
-          // This could show a "waiting for host" message
-          navigate(`/events/${event.id}`)
+          setError(error.message);
         }
       }
-    } catch (err) {
-      console.error('Failed to join event:', err)
-      setError('Could not find an event with that join code.')
-    } finally {
-      setLoading(false)
     }
-  }
+  };
 
+  // Updated JSX - QR SCANNER ONLY (component to be added in TICKET-005)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-950 to-dark-900 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-dark-900 rounded-xl p-8 border border-dark-700 shadow-xl">
-        <h1 className="text-2xl font-bold text-white mb-2 text-center">Join an Event</h1>
-        <p className="text-sm text-gray-400 mb-6 text-center">
-          Enter the 6-character join code shown on the presenter&apos;s screen.
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Join Code"
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder="e.g. ABC123"
-            maxLength={6}
-            required
-          />
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <Button
-            type="submit"
-            variant="primary"
-            className="w-full"
-            disabled={loading || !code.trim()}
-          >
-            {loading ? 'Joining...' : 'Join Event'}
-          </Button>
-        </form>
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="bg-slate-800 rounded-xl shadow-2xl p-8 border border-slate-700">
+          <h1 className="text-3xl font-bold text-white mb-2">Join Event</h1>
+          <p className="text-slate-400 mb-8">
+            Scan the QR code displayed on the screen to join the event
+          </p>
+
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6">
+              <p className="text-red-300 text-sm">{error}</p>
+              <p className="text-red-300 text-xs mt-2">
+                Try scanning the QR code again or ask the presenter for a new code
+              </p>
+            </div>
+          )}
+
+          {/* QRScanner component will be inserted here in TICKET-005 */}
+          <div className="bg-slate-900 rounded-lg p-6 mb-6 border border-slate-600 border-dashed">
+            <p className="text-slate-500 text-center py-8">
+              QR Scanner loading...
+            </p>
+          </div>
+
+          <div className="bg-slate-700/30 rounded-lg p-4">
+            <p className="text-slate-400 text-xs text-center">
+              💡 Enable camera access when prompted to scan the QR code
+            </p>
+          </div>
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
 

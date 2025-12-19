@@ -1,16 +1,21 @@
-# Development Dockerfile for React Frontend
-FROM node:20-alpine
+# Development Dockerfile for React Frontend (Playwright-enabled)
+FROM node:20-bullseye
 
 WORKDIR /app
 
-# Install wget for health checks
-RUN apk add --no-cache wget
+# Install tools needed for health checks and Playwright browser deps
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package.json package-lock.json* ./
 
 # Install dependencies
 RUN npm ci --legacy-peer-deps
+
+# Install Playwright browsers so e2e tests can run in-container
+RUN npx playwright install --with-deps chromium
 
 # Copy source code (will be mounted as volume in docker-compose)
 COPY . .
@@ -24,4 +29,3 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
 
 # Run development server with host binding for Docker
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
-
