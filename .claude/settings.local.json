@@ -30,7 +30,16 @@
       "Bash(source ~/.bashrc)",
       "Bash(~/.cargo/bin/cargo:*)",
       "Bash(PATH=\"/usr/local/bin:/usr/bin:/bin:$PATH\" cargo:*)",
-      "Bash(PATH=\"/usr/local/bin:/usr/bin:/bin:$PATH\" ~/.cargo/bin/cargo check:*)"
+      "Bash(PATH=\"/usr/local/bin:/usr/bin:/bin:$PATH\" ~/.cargo/bin/cargo check:*)",
+      "Bash(find:*)",
+      "Bash(sort:*)",
+      "Bash(xargs cat:*)",
+      "Bash(/usr/local/bin/cargo --version)",
+      "Bash(/opt/homebrew/bin/cargo --version)",
+      "Bash(timeout 30 npx vitest run:*)",
+      "Bash(ls:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git reset:*)"
     ]
   }
 }
