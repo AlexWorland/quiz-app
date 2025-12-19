@@ -1,7 +1,21 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio::sync::broadcast;
 use uuid::Uuid;
+
+/// Quiz phase state machine
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuizPhase {
+    NotStarted,
+    ShowingQuestion,
+    RevealingAnswer,
+    ShowingLeaderboard,
+    BetweenQuestions,
+    SegmentComplete,
+    EventComplete,
+}
 
 /// Participant connection info
 #[derive(Debug, Clone)]
@@ -22,6 +36,8 @@ pub struct GameState {
     pub time_limit_seconds: i32,
     pub participants: HashMap<Uuid, Participant>,
     pub answers_received: HashMap<Uuid, String>, // user_id -> selected_answer
+    pub quiz_phase: QuizPhase,
+    pub total_participants: usize, // Count of non-presenter participants
 }
 
 /// WebSocket connection hub for managing all active sessions
@@ -58,6 +74,8 @@ impl Hub {
                 time_limit_seconds: 30,
                 participants: HashMap::new(),
                 answers_received: HashMap::new(),
+                quiz_phase: QuizPhase::NotStarted,
+                total_participants: 0,
             };
             sessions.insert(event_id, (tx, game_state));
             rx
@@ -111,6 +129,39 @@ impl Hub {
         let mut sessions = self.event_sessions.write().await;
         if let Some((_, game_state)) = sessions.get_mut(&event_id) {
             game_state.answers_received.clear();
+        }
+    }
+
+    /// Set quiz phase for an event
+    pub async fn set_quiz_phase(&self, event_id: Uuid, phase: QuizPhase) {
+        let mut sessions = self.event_sessions.write().await;
+        if let Some((_, game_state)) = sessions.get_mut(&event_id) {
+            game_state.quiz_phase = phase;
+        }
+    }
+
+    /// Check if all participants have answered
+    pub fn all_answered(&self, event_id: Uuid) -> bool {
+        // This is a synchronous check, but we need async access
+        // We'll check this in the handler after getting game state
+        false // Placeholder - actual check done in handler
+    }
+
+    /// Increment participant count (exclude presenter)
+    pub async fn increment_participant_count(&self, event_id: Uuid) {
+        let mut sessions = self.event_sessions.write().await;
+        if let Some((_, game_state)) = sessions.get_mut(&event_id) {
+            game_state.total_participants += 1;
+        }
+    }
+
+    /// Decrement participant count (exclude presenter)
+    pub async fn decrement_participant_count(&self, event_id: Uuid) {
+        let mut sessions = self.event_sessions.write().await;
+        if let Some((_, game_state)) = sessions.get_mut(&event_id) {
+            if game_state.total_participants > 0 {
+                game_state.total_participants -= 1;
+            }
         }
     }
 

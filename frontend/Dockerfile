@@ -29,7 +29,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install serve to run the application
-RUN npm install -g serve
+RUN npm install -g serve@14
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist

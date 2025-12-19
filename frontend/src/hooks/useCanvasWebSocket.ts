@@ -78,7 +78,7 @@ export function useCanvasWebSocket(options: UseCanvasWebSocketOptions) {
 
       // Auto-reconnect if enabled
       if (autoReconnect) {
-        reconnectTimeoutRef.current = setTimeout(() => {
+        reconnectTimeoutRef.current = window.setTimeout(() => {
           connect()
         }, reconnectInterval)
       }

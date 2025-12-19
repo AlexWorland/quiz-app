@@ -6,6 +6,8 @@ import { useAuthStore } from '@/store/authStore'
 import { QuestionDisplay } from '@/components/quiz/QuestionDisplay'
 import { AnswerSelection } from '@/components/quiz/AnswerSelection'
 import { QuizResults, type AnswerDistribution, type LeaderboardEntry as QuizLeaderboardEntry } from '@/components/quiz/QuizResults'
+import { SegmentCompleteView } from '@/components/quiz/SegmentCompleteView'
+import { EventCompleteView } from '@/components/quiz/EventCompleteView'
 import { SegmentLeaderboard } from '@/components/leaderboard/SegmentLeaderboard'
 import { MasterLeaderboard } from '@/components/leaderboard/MasterLeaderboard'
 import { FlappyGame } from '@/components/flappy/FlappyGame'
@@ -22,6 +24,8 @@ import {
   useEventWebSocket,
   type ServerMessage,
   type Participant,
+  type LeaderboardEntry as WsLeaderboardEntry,
+  type SegmentWinner,
 } from '@/hooks/useEventWebSocket'
 
 export function EventParticipantPage() {
@@ -56,6 +60,25 @@ export function EventParticipantPage() {
   const [eventRankings, setEventRankings] = useState<LeaderboardEntry[]>([])
 
   const [participants, setParticipants] = useState<Participant[]>([])
+
+  // Quiz phase state for enhanced message handling
+  const [currentPresenterId, setCurrentPresenterId] = useState<string | null>(null)
+  const [currentPresenterName, setCurrentPresenterName] = useState<string | null>(null)
+  const [_segmentResults, setSegmentResults] = useState<{
+    segment_id: string
+    segment_title: string
+    presenter_name: string
+    segment_leaderboard: WsLeaderboardEntry[]
+    event_leaderboard: WsLeaderboardEntry[]
+    segment_winner?: WsLeaderboardEntry
+    event_leader?: WsLeaderboardEntry
+  } | null>(null)
+  const [_finalResults, setFinalResults] = useState<{
+    event_id: string
+    final_leaderboard: WsLeaderboardEntry[]
+    winner?: WsLeaderboardEntry
+    segment_winners: SegmentWinner[]
+  } | null>(null)
 
   useEffect(() => {
     if (!eventId) return
@@ -124,6 +147,34 @@ export function EventParticipantPage() {
         }
       } else if (msg.type === 'leaderboard') {
         setSegmentRankings(msg.rankings)
+      } else if (msg.type === 'presenter_changed') {
+        setCurrentPresenterId(msg.new_presenter_id)
+        setCurrentPresenterName(msg.new_presenter_name)
+
+        // If I'm the new presenter, redirect to host view
+        if (user && msg.new_presenter_id === user.id) {
+          navigate(`/events/${eventId}/host/${msg.segment_id}`)
+        }
+      } else if (msg.type === 'segment_complete') {
+        setSegmentResults({
+          segment_id: msg.segment_id,
+          segment_title: msg.segment_title,
+          presenter_name: msg.presenter_name,
+          segment_leaderboard: msg.segment_leaderboard,
+          event_leaderboard: msg.event_leaderboard,
+          segment_winner: msg.segment_winner,
+          event_leader: msg.event_leader,
+        })
+        setShowResults(false)
+        setCurrentQuestionId(null)
+      } else if (msg.type === 'event_complete') {
+        setFinalResults({
+          event_id: msg.event_id,
+          final_leaderboard: msg.final_leaderboard,
+          winner: msg.winner,
+          segment_winners: msg.segment_winners,
+        })
+        setGameStarted(false)
       }
     },
   })
@@ -144,6 +195,11 @@ export function EventParticipantPage() {
   }
 
   const hasActiveQuestion = !!currentQuestionId && !!questionStartedAt
+
+  const isPresenter = useMemo(() => {
+    if (!user || !currentPresenterId) return false
+    return user.id === currentPresenterId
+  }, [user, currentPresenterId])
 
   const myRank = useMemo(() => {
     if (!user) return undefined
@@ -188,6 +244,11 @@ export function EventParticipantPage() {
                 {event.join_code}
               </span>
             </p>
+            {currentPresenterName && (
+              <div className="text-xs text-cyan-400 mt-1">
+                Presenter: {currentPresenterName}
+              </div>
+            )}
           </div>
           <div className="text-right">
             {user && (
@@ -217,11 +278,48 @@ export function EventParticipantPage() {
             <span className="text-gray-200">
               {isConnected ? 'Connected to live game' : 'Reconnecting...'}
             </span>
+            {currentPresenterName && (
+              <div className="text-xs text-cyan-400 ml-2">
+                Presenter: {currentPresenterName}
+              </div>
+            )}
           </div>
           <div className="text-xs text-gray-400">
             Players connected: {participants.length}
           </div>
         </div>
+
+        {/* Segment Complete View */}
+        {_segmentResults && !_finalResults && (
+          <SegmentCompleteView
+            segmentTitle={_segmentResults.segment_title}
+            segmentLeaderboard={_segmentResults.segment_leaderboard}
+            eventLeaderboard={_segmentResults.event_leaderboard}
+            segmentWinner={_segmentResults.segment_winner}
+            isPresenter={false}
+          />
+        )}
+
+        {/* Event Complete View */}
+        {_finalResults && (
+          <EventCompleteView
+            finalLeaderboard={_finalResults.final_leaderboard}
+            winner={_finalResults.winner}
+            segmentWinners={_finalResults.segment_winners}
+          />
+        )}
+
+        {/* Presenter Indicator */}
+        {isPresenter && !_segmentResults && !_finalResults && (
+          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 mb-4">
+            <span className="text-cyan-400">You are the presenter! </span>
+            {segmentId && (
+              <Button onClick={() => navigate(`/events/${eventId}/host/${segmentId}`)}>
+                Go to Presenter View
+              </Button>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1.5fr] gap-6 items-start">
           {/* Left: waiting room / question / results */}

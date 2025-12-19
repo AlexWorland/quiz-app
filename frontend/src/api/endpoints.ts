@@ -63,6 +63,7 @@ export interface Segment {
   id: string
   event_id: string
   presenter_name: string
+  presenter_user_id?: string
   title?: string
   order_index: number
   status: 'pending' | 'recording' | 'recording_paused' | 'quiz_ready' | 'quizzing' | 'completed'
@@ -83,6 +84,7 @@ export interface CreateEventRequest {
 
 export interface CreateSegmentRequest {
   presenter_name: string
+  presenter_user_id?: string
   title?: string
 }
 
@@ -106,6 +108,15 @@ export interface LeaderboardEntry {
   avatar_url?: string
   score: number
 }
+
+export type QuizPhase =
+  | 'not_started'
+  | 'showing_question'
+  | 'revealing_answer'
+  | 'showing_leaderboard'
+  | 'between_questions'
+  | 'segment_complete'
+  | 'event_complete'
 
 // Event endpoints
 export const listEvents = () =>

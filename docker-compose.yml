@@ -16,10 +16,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - quiz-network
 
   # MinIO - S3-compatible object storage for avatars
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-12-13T22-19-12Z
     container_name: quiz-minio
     command: server /data --console-address ":9001"
     environment:
@@ -31,10 +33,13 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
       interval: 30s
       timeout: 20s
       retries: 3
+      start_period: 10s
+    networks:
+      - quiz-network
 
   # MinIO bucket initialization
   minio-init:
@@ -50,12 +55,14 @@ services:
       mc anonymous set download myminio/avatars;
       exit 0;
       "
+    networks:
+      - quiz-network
 
-  # Rust Backend
+  # Rust Backend (Development)
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: quiz-backend
     environment:
       DATABASE_URL: postgres://quiz:quiz@postgres:5432/quiz
@@ -72,45 +79,68 @@ services:
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama2}
       RUST_LOG: ${RUST_LOG:-info}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-32-byte-secret-key-change-me!!!}
       RUST_ENV: ${RUST_ENV:-development}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      ENABLE_STREAMING_TRANSCRIPTION: ${ENABLE_STREAMING_TRANSCRIPTION:-false}
+      ENABLE_AI_QUALITY_SCORING: ${ENABLE_AI_QUALITY_SCORING:-false}
+      CANVAS_SYNC_LIMIT: ${CANVAS_SYNC_LIMIT:-100}
     ports:
-      - "8080:8080"
+      - "8081:8080"  # Map host port 8081 to container port 8080
+    volumes:
+      - ./backend:/app
+      - backend_target:/app/target
+      - cargo_cache:/usr/local/cargo/registry
     depends_on:
       postgres:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
-    volumes:
-      - ./backend:/app
-      - backend_target:/app/target
-      - cargo_cache:/usr/local/cargo/registry
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: cargo run
+    networks:
+      - quiz-network
 
-  # React Frontend
+  # React Frontend (Development)
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
-        VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8080}
+      dockerfile: Dockerfile.dev
     container_name: quiz-frontend
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
-      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8080}
+      # Use localhost for browser (runs outside Docker), vite proxy handles internal routing
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8081}
+      VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:8081}
+      DOCKER_ENV: 'true'  # Signal to vite.config.ts to use Docker networking
+      NODE_ENV: development
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: npm run dev -- --host 0.0.0.0
+    networks:
+      - quiz-network
 
   # Ollama - Local LLM (optional, use with --profile local-llm)
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.5.4
     container_name: quiz-ollama
     profiles:
       - local-llm
@@ -125,11 +155,13 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    networks:
+      - quiz-network
     # Fallback for non-GPU systems - comment out deploy section above
 
   # Ollama model initialization (pulls llama2 on first run)
   ollama-init:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.5.4
     container_name: quiz-ollama-init
     profiles:
       - local-llm
@@ -143,6 +175,8 @@ services:
       "
     environment:
       OLLAMA_HOST: ollama:11434
+    networks:
+      - quiz-network
 
 volumes:
   postgres_data:
@@ -153,5 +187,6 @@ volumes:
   frontend_node_modules:
 
 networks:
-  default:
+  quiz-network:
     name: quiz-network
+    driver: bridge

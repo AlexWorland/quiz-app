@@ -1,63 +1,70 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { ColorPalette } from '../ColorPalette'
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { ColorPalette } from '../ColorPalette';
 
 describe('ColorPalette', () => {
-  const mockOnColorChange = vi.fn()
-  const colors = ['#ffffff', '#000000', '#ef4444', '#f59e0b', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899']
+  it('should render all colors', () => {
+    const onColorChange = vi.fn();
+    render(<ColorPalette selectedColor="#ffffff" onColorChange={onColorChange} />);
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    expect(screen.getByLabelText('Select color #ffffff')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select color #000000')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select color #ef4444')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select color #f59e0b')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select color #eab308')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select color #22c55e')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select color #3b82f6')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select color #8b5cf6')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select color #ec4899')).toBeInTheDocument();
+  });
 
-  it('should render all color buttons', () => {
-    render(<ColorPalette selectedColor="#ffffff" onColorChange={mockOnColorChange} />)
+  it('should highlight selected color', () => {
+    const onColorChange = vi.fn();
+    const { container } = render(<ColorPalette selectedColor="#ef4444" onColorChange={onColorChange} />);
 
-    colors.forEach((color) => {
-      const button = screen.getByLabelText(`Select color ${color}`)
-      expect(button).toBeInTheDocument()
-    })
-  })
+    const selectedButton = screen.getByLabelText('Select color #ef4444');
+    expect(selectedButton).toHaveClass('border-white', 'scale-110');
+  });
 
-  it('should call onColorChange when clicking a color', async () => {
-    const user = userEvent.setup()
-    render(<ColorPalette selectedColor="#ffffff" onColorChange={mockOnColorChange} />)
+  it('should not highlight unselected colors', () => {
+    const onColorChange = vi.fn();
+    render(<ColorPalette selectedColor="#ffffff" onColorChange={onColorChange} />);
 
-    const redButton = screen.getByLabelText('Select color #ef4444')
-    await user.click(redButton)
+    const unselectedButton = screen.getByLabelText('Select color #ef4444');
+    expect(unselectedButton).toHaveClass('border-dark-600');
+    expect(unselectedButton).not.toHaveClass('border-white');
+  });
 
-    expect(mockOnColorChange).toHaveBeenCalledWith('#ef4444')
-  })
+  it('should call onColorChange when color is clicked', async () => {
+    const onColorChange = vi.fn();
+    render(<ColorPalette selectedColor="#ffffff" onColorChange={onColorChange} />);
 
-  it('should highlight selected color with scale-110 class', () => {
-    const { rerender } = render(<ColorPalette selectedColor="#ffffff" onColorChange={mockOnColorChange} />)
+    const colorButton = screen.getByLabelText('Select color #ef4444');
+    await userEvent.click(colorButton);
 
-    let button = screen.getByLabelText('Select color #ffffff')
-    expect(button).toHaveClass('scale-110')
+    expect(onColorChange).toHaveBeenCalledWith('#ef4444');
+  });
 
-    rerender(<ColorPalette selectedColor="#ef4444" onColorChange={mockOnColorChange} />)
+  it('should apply background color to buttons', () => {
+    const onColorChange = vi.fn();
+    render(<ColorPalette selectedColor="#ffffff" onColorChange={onColorChange} />);
 
-    button = screen.getByLabelText('Select color #ef4444')
-    expect(button).toHaveClass('scale-110')
-  })
+    const redButton = screen.getByLabelText('Select color #ef4444');
+    expect(redButton).toHaveStyle({ backgroundColor: '#ef4444' });
+  });
 
-  it('should have aria-label on each button', () => {
-    render(<ColorPalette selectedColor="#ffffff" onColorChange={mockOnColorChange} />)
+  it('should update selected color when prop changes', () => {
+    const onColorChange = vi.fn();
+    const { rerender } = render(<ColorPalette selectedColor="#ffffff" onColorChange={onColorChange} />);
 
-    colors.forEach((color) => {
-      const button = screen.getByLabelText(`Select color ${color}`)
-      expect(button).toHaveAttribute('aria-label', `Select color ${color}`)
-    })
-  })
+    let selectedButton = screen.getByLabelText('Select color #ffffff');
+    expect(selectedButton).toHaveClass('border-white');
 
-  it('should apply correct background color to buttons', () => {
-    render(<ColorPalette selectedColor="#ffffff" onColorChange={mockOnColorChange} />)
+    rerender(<ColorPalette selectedColor="#ef4444" onColorChange={onColorChange} />);
 
-    const redButton = screen.getByLabelText('Select color #ef4444')
-    expect(redButton).toHaveStyle({ backgroundColor: '#ef4444' })
+    selectedButton = screen.getByLabelText('Select color #ef4444');
+    expect(selectedButton).toHaveClass('border-white');
+  });
+});
 
-    const blueButton = screen.getByLabelText('Select color #3b82f6')
-    expect(blueButton).toHaveStyle({ backgroundColor: '#3b82f6' })
-  })
-})

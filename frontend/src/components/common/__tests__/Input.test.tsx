@@ -1,103 +1,156 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { Input } from '../Input'
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Input } from '../Input';
 
 describe('Input', () => {
   it('should render input element', () => {
-    render(<Input />)
+    render(<Input />);
+    const input = document.querySelector('input');
+    expect(input).toBeInTheDocument();
+  });
 
-    expect(screen.getByRole('textbox')).toBeInTheDocument()
-  })
+  it('should render with label', () => {
+    render(<Input label="Username" />);
+    expect(screen.getByLabelText('Username')).toBeInTheDocument();
+  });
 
-  it('should render label when provided', () => {
-    render(<Input label="Username" />)
+  it('should render without label when not provided', () => {
+    render(<Input />);
+    expect(screen.queryByText('Username')).not.toBeInTheDocument();
+  });
 
-    expect(screen.getByText('Username')).toBeInTheDocument()
-  })
+  it('should display error message when error prop is provided', () => {
+    render(<Input error="This field is required" />);
+    expect(screen.getByText('This field is required')).toBeInTheDocument();
+  });
 
-  it('should not render label when not provided', () => {
-    render(<Input />)
+  it('should not display error message when error prop is not provided', () => {
+    render(<Input />);
+    expect(screen.queryByText('This field is required')).not.toBeInTheDocument();
+  });
 
-    expect(screen.queryByRole('label')).not.toBeInTheDocument()
-  })
+  it('should apply error styles when error is present', () => {
+    const { container } = render(<Input error="Error message" />);
+    const input = container.querySelector('input');
+    expect(input).toHaveClass('border-red-500', 'focus:ring-red-500');
+  });
 
-  it('should display error message when provided', () => {
-    render(<Input error="This field is required" />)
+  it('should not apply error styles when error is not present', () => {
+    const { container } = render(<Input />);
+    const input = container.querySelector('input');
+    expect(input).not.toHaveClass('border-red-500');
+  });
 
-    expect(screen.getByText('This field is required')).toBeInTheDocument()
-  })
+  it('should accept and display value', () => {
+    render(<Input value="test value" onChange={() => {}} />);
+    const input = document.querySelector('input') as HTMLInputElement;
+    expect(input.value).toBe('test value');
+  });
 
-  it('should apply error styling to input when error is present', () => {
-    render(<Input error="Error" />)
+  it('should call onChange when value changes', async () => {
+    const handleChange = vi.fn();
+    render(<Input onChange={handleChange} />);
+    
+    const input = document.querySelector('input')!;
+    await userEvent.type(input, 'test');
+    
+    expect(handleChange).toHaveBeenCalled();
+  });
 
-    const input = screen.getByRole('textbox')
-    expect(input).toHaveClass('border-red-500')
-  })
+  it('should accept placeholder', () => {
+    render(<Input placeholder="Enter your name" />);
+    const input = screen.getByPlaceholderText('Enter your name');
+    expect(input).toBeInTheDocument();
+  });
 
-  it('should apply error styling to focus ring when error is present', () => {
-    render(<Input error="Error" />)
+  it('should accept type prop', () => {
+    render(<Input type="password" />);
+    const input = document.querySelector('input[type="password"]');
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveAttribute('type', 'password');
+  });
 
-    const input = screen.getByRole('textbox')
-    expect(input).toHaveClass('focus:ring-red-500')
-  })
+  it('should accept disabled prop', () => {
+    render(<Input disabled />);
+    const input = screen.getByRole('textbox');
+    expect(input).toBeDisabled();
+  });
 
-  it('should display error message in red', () => {
-    render(<Input error="Error message" />)
+  it('should accept required prop', () => {
+    render(<Input required />);
+    const input = screen.getByRole('textbox');
+    expect(input).toBeRequired();
+  });
 
-    const errorMessage = screen.getByText('Error message')
-    expect(errorMessage).toHaveClass('text-red-500')
-  })
+  it('should accept name prop', () => {
+    render(<Input name="username" />);
+    const input = document.querySelector('input');
+    expect(input).toHaveAttribute('name', 'username');
+  });
 
-  it('should forward ref to input', () => {
-    const ref = vi.fn()
-    render(<Input ref={ref} />)
+  it('should accept id prop', () => {
+    render(<Input id="user-input" />);
+    const input = document.querySelector('input');
+    expect(input).toHaveAttribute('id', 'user-input');
+  });
 
-    expect(ref).toHaveBeenCalled()
-  })
+  it('should associate label with input using htmlFor', () => {
+    render(<Input label="Username" id="username" />);
+    const label = screen.getByText('Username');
+    const input = screen.getByLabelText('Username');
+    expect(label).toBeInTheDocument();
+    expect(input).toHaveAttribute('id', 'username');
+  });
 
-  it('should handle onChange events', () => {
-    const handleChange = vi.fn()
-    render(<Input onChange={handleChange} />)
+  it('should accept custom className', () => {
+    const { container } = render(<Input className="custom-input" />);
+    const input = container.querySelector('input');
+    expect(input).toHaveClass('custom-input');
+  });
 
-    const input = screen.getByRole('textbox')
-    fireEvent.change(input, { target: { value: 'test' } })
+  it('should forward ref', () => {
+    const ref = vi.fn();
+    render(<Input ref={ref} />);
+    expect(ref).toHaveBeenCalled();
+  });
 
-    expect(handleChange).toHaveBeenCalled()
-  })
+  it('should have focus ring styles', () => {
+    const { container } = render(<Input />);
+    const input = container.querySelector('input');
+    expect(input).toHaveClass('focus:ring-2', 'focus:ring-accent-cyan');
+  });
 
-  it('should apply custom className', () => {
-    render(<Input className="custom-class" />)
+  it('should have dark mode styles', () => {
+    const { container } = render(<Input />);
+    const input = container.querySelector('input');
+    expect(input).toHaveClass('dark:bg-dark-800', 'dark:text-gray-100');
+  });
 
-    const input = screen.getByRole('textbox')
-    expect(input).toHaveClass('custom-class')
-  })
+  it('should render error message with correct styling', () => {
+    render(<Input error="Error message" />);
+    const errorMessage = screen.getByText('Error message');
+    expect(errorMessage).toHaveClass('text-red-500', 'text-sm', 'mt-1');
+  });
 
-  it('should pass through input attributes', () => {
-    render(<Input placeholder="Enter text" type="email" />)
+  it('should handle controlled input', async () => {
+    const handleChange = vi.fn();
+    render(<Input value="" onChange={handleChange} />);
+    
+    const input = document.querySelector('input') as HTMLInputElement;
+    await userEvent.type(input, 'a');
+    
+    expect(handleChange).toHaveBeenCalled();
+  });
 
-    const input = screen.getByRole('textbox')
-    expect(input).toHaveAttribute('placeholder', 'Enter text')
-    expect(input).toHaveAttribute('type', 'email')
-  })
+  it('should handle uncontrolled input', async () => {
+    render(<Input defaultValue="initial" />);
+    
+    const input = document.querySelector('input') as HTMLInputElement;
+    expect(input.value).toBe('initial');
+    
+    await userEvent.type(input, ' new');
+    expect(input.value).toBe('initial new');
+  });
+});
 
-  it('should apply disabled styling', () => {
-    render(<Input disabled />)
-
-    const input = screen.getByRole('textbox')
-    expect(input).toBeDisabled()
-  })
-
-  it('should have proper base styling', () => {
-    render(<Input />)
-
-    const input = screen.getByRole('textbox')
-    expect(input).toHaveClass('w-full', 'px-4', 'py-2', 'rounded-lg')
-  })
-
-  it('should associate label with input', () => {
-    render(<Input label="Email" id="email-input" />)
-
-    const label = screen.getByText('Email')
-    expect(label).toBeInTheDocument()
-  })
-})

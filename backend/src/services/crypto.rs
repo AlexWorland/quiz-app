@@ -1,6 +1,6 @@
 use crate::error::{AppError, Result};
 use aes_gcm::aead::{Aead, KeyInit, OsRng};
-use aes_gcm::{Aes256Gcm, Nonce}; // 96-bit nonce
+use aes_gcm::{AeadCore, Aes256Gcm, Nonce}; // 96-bit nonce
 use base64::{engine::general_purpose, Engine as _};
 
 /// Encrypt a string using AES-256-GCM with the provided key
@@ -13,7 +13,7 @@ pub fn encrypt_string(plaintext: &str, key: &str) -> Result<String> {
     let cipher = Aes256Gcm::new_from_slice(key_bytes)
         .map_err(|e| AppError::Internal(format!("Failed to init cipher: {}", e)))?;
 
-    let nonce_bytes = aes_gcm::Nonce::generate(&mut OsRng);
+    let nonce_bytes = Aes256Gcm::generate_nonce(&mut OsRng);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher

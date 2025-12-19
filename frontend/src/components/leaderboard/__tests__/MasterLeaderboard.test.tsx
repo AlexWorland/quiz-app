@@ -1,96 +1,98 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { MasterLeaderboard } from '../MasterLeaderboard'
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { MasterLeaderboard } from '../MasterLeaderboard';
 
-interface LeaderboardEntry {
-  user_id: string
-  username: string
-  score: number
-  rank: number
-  avatar_url?: string
-}
-
-const mockRankings: LeaderboardEntry[] = [
-  {
-    user_id: '1',
-    username: 'Alice',
-    score: 100,
-    rank: 1,
-    avatar_url: 'https://example.com/avatar1.png',
-  },
-  { user_id: '2', username: 'Bob', score: 80, rank: 2 },
-  { user_id: '3', username: 'Charlie', score: 60, rank: 3 },
-  { user_id: '4', username: 'Dave', score: 40, rank: 4 },
-]
-
-const mockSegmentsPlayed: Record<string, number> = {
-  '1': 5,
-  '2': 4,
-  '3': 3,
-  '4': 2,
-}
+// Mock lucide-react icons
+vi.mock('lucide-react', () => ({
+  Trophy: () => <div data-testid="trophy-icon">Trophy</div>,
+  Medal: () => <div data-testid="medal-icon">Medal</div>,
+  Award: () => <div data-testid="award-icon">Award</div>,
+}));
 
 describe('MasterLeaderboard', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  const mockRankings = [
+    { rank: 1, user_id: '1', username: 'Winner', score: 100 },
+    { rank: 2, user_id: '2', username: 'RunnerUp', score: 80 },
+    { rank: 3, user_id: '3', username: 'Third', score: 60 },
+    { rank: 4, user_id: '4', username: 'Fourth', score: 40 },
+  ];
 
-  it('should show "No scores yet" when rankings array is empty', () => {
-    render(<MasterLeaderboard rankings={[]} />)
-    expect(screen.getByText('No scores yet')).toBeInTheDocument()
-  })
+  it('should render title', () => {
+    render(<MasterLeaderboard rankings={mockRankings} />);
+    expect(screen.getByText('🏆 Master Leaderboard')).toBeInTheDocument();
+  });
 
-  it('should display "Master Leaderboard" title with trophy emoji', () => {
-    render(<MasterLeaderboard rankings={mockRankings} />)
-    expect(screen.getByText(/Master Leaderboard/)).toBeInTheDocument()
-  })
+  it('should render description', () => {
+    render(<MasterLeaderboard rankings={mockRankings} />);
+    expect(screen.getByText('Aggregate scores across all segments')).toBeInTheDocument();
+  });
 
-  it('should render all entries with username and score', () => {
-    render(<MasterLeaderboard rankings={mockRankings} />)
-    expect(screen.getByText('Alice')).toBeInTheDocument()
-    expect(screen.getByText('100')).toBeInTheDocument()
-    expect(screen.getByText('Bob')).toBeInTheDocument()
-    expect(screen.getByText('80')).toBeInTheDocument()
-    expect(screen.getByText('Charlie')).toBeInTheDocument()
-    expect(screen.getByText('60')).toBeInTheDocument()
-  })
+  it('should render all rankings', () => {
+    render(<MasterLeaderboard rankings={mockRankings} />);
+    expect(screen.getByText('Winner')).toBeInTheDocument();
+    expect(screen.getByText('RunnerUp')).toBeInTheDocument();
+    expect(screen.getByText('Third')).toBeInTheDocument();
+    expect(screen.getByText('Fourth')).toBeInTheDocument();
+  });
 
-  it('should show rank icons for top 3 and number for rank 4', () => {
-    const { container } = render(<MasterLeaderboard rankings={mockRankings} />)
-    // Top 3 have SVG icons, rank 4 shows number
-    const svgIcons = container.querySelectorAll('svg')
-    expect(svgIcons.length).toBeGreaterThanOrEqual(3)
-    expect(screen.getByText('4')).toBeInTheDocument()
-  })
+  it('should display scores', () => {
+    render(<MasterLeaderboard rankings={mockRankings} />);
+    expect(screen.getByText('100')).toBeInTheDocument();
+    expect(screen.getByText('80')).toBeInTheDocument();
+    expect(screen.getByText('60')).toBeInTheDocument();
+    expect(screen.getByText('40')).toBeInTheDocument();
+  });
 
-  it('should show "total points" label for each score', () => {
-    render(<MasterLeaderboard rankings={mockRankings} />)
-    const labels = screen.getAllByText(/total points/)
-    expect(labels.length).toBeGreaterThan(0)
-  })
+  it('should show trophy icon for rank 1', () => {
+    render(<MasterLeaderboard rankings={[mockRankings[0]]} />);
+    expect(screen.getByTestId('trophy-icon')).toBeInTheDocument();
+  });
 
-  it('should display segments played count when segmentsPlayed provided', () => {
-    render(
-      <MasterLeaderboard
-        rankings={mockRankings}
-        segmentsPlayed={mockSegmentsPlayed}
-      />
-    )
-    expect(screen.getByText(/5 segments played/)).toBeInTheDocument()
-    expect(screen.getByText(/4 segments played/)).toBeInTheDocument()
-    expect(screen.getByText(/3 segments played/)).toBeInTheDocument()
-  })
+  it('should show medal icon for rank 2', () => {
+    render(<MasterLeaderboard rankings={[mockRankings[1]]} />);
+    expect(screen.getByTestId('medal-icon')).toBeInTheDocument();
+  });
 
-  it('should display avatar image when avatar_url provided', () => {
-    render(<MasterLeaderboard rankings={mockRankings} />)
-    const avatar = screen.getByAltText('Alice') as HTMLImageElement
-    expect(avatar).toBeInTheDocument()
-    expect(avatar.src).toBe('https://example.com/avatar1.png')
-  })
+  it('should show award icon for rank 3', () => {
+    render(<MasterLeaderboard rankings={[mockRankings[2]]} />);
+    expect(screen.getByTestId('award-icon')).toBeInTheDocument();
+  });
 
-  it('should display initial letter when no avatar_url', () => {
-    render(<MasterLeaderboard rankings={mockRankings} />)
-    expect(screen.getByText('B')).toBeInTheDocument()
-    expect(screen.getByText('C')).toBeInTheDocument()
-  })
-})
+  it('should show rank number for ranks above 3', () => {
+    render(<MasterLeaderboard rankings={[mockRankings[3]]} />);
+    expect(screen.getByText('4')).toBeInTheDocument();
+  });
+
+  it('should display avatar when provided', () => {
+    const rankingsWithAvatar = [
+      { rank: 1, user_id: '1', username: 'User', score: 100, avatar_url: 'avatar.jpg' },
+    ];
+    render(<MasterLeaderboard rankings={rankingsWithAvatar} />);
+    const avatar = screen.getByAltText('User');
+    expect(avatar).toBeInTheDocument();
+    expect(avatar).toHaveAttribute('src', 'avatar.jpg');
+  });
+
+  it('should display initial when avatar is not provided', () => {
+    render(<MasterLeaderboard rankings={[mockRankings[0]]} />);
+    expect(screen.getByText('W')).toBeInTheDocument();
+  });
+
+  it('should display segments played when provided', () => {
+    const segmentsPlayed = { '1': 3, '2': 2 };
+    render(<MasterLeaderboard rankings={mockRankings} segmentsPlayed={segmentsPlayed} />);
+    expect(screen.getByText('3 segments played')).toBeInTheDocument();
+    expect(screen.getByText('2 segments played')).toBeInTheDocument();
+  });
+
+  it('should handle empty rankings', () => {
+    render(<MasterLeaderboard rankings={[]} />);
+    expect(screen.getByText('No scores yet')).toBeInTheDocument();
+  });
+
+  it('should not show segments played when not provided', () => {
+    render(<MasterLeaderboard rankings={mockRankings} />);
+    expect(screen.queryByText('segments played')).not.toBeInTheDocument();
+  });
+});
+

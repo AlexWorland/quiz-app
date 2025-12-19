@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Play, SkipForward, Eye, Trophy, Square } from 'lucide-react'
+import { ArrowLeft, Play } from 'lucide-react'
 
+import { useAuthStore } from '@/store/authStore'
 import { Button } from '@/components/common/Button'
+import { PassPresenterButton } from '@/components/quiz/PassPresenterButton'
+import { AnswerProgress } from '@/components/quiz/AnswerProgress'
+import { PresenterControls } from '@/components/quiz/PresenterControls'
+import { SegmentCompleteView } from '@/components/quiz/SegmentCompleteView'
 import { RecordingControls } from '@/components/recording/RecordingControls'
 import { RecordingStatus } from '@/components/recording/RecordingStatus'
 import { TranscriptView } from '@/components/recording/TranscriptView'
@@ -26,11 +31,13 @@ import {
   getSegment,
 } from '@/api/endpoints'
 import { useAudioWebSocket, type AudioServerMessage } from '@/hooks/useAudioWebSocket'
-import { useEventWebSocket, type ServerMessage, type Participant } from '@/hooks/useEventWebSocket'
+import { useEventWebSocket, type ServerMessage, type Participant, type QuizPhase, type LeaderboardEntry as WsLeaderboardEntry, type SegmentWinner } from '@/hooks/useEventWebSocket'
+import { DisplayModeContainer } from '@/components/display/DisplayModeContainer'
 
 export function EventHostPage() {
   const { eventId, segmentId } = useParams<{ eventId: string; segmentId: string }>()
   const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
 
   const [event, setEvent] = useState<Event | null>(null)
   const [segment, setSegment] = useState<Segment | null>(null)
@@ -45,11 +52,39 @@ export function EventHostPage() {
   // Quiz flow state
   const [isQuizActive, setIsQuizActive] = useState(false)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
-  const [showingAnswer, setShowingAnswer] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
 
   // Tab state for Traditional Mode
   const [activeTab, setActiveTab] = useState<'add' | 'import' | 'list'>('add')
+
+  // Display mode state
+  const [processingStatus, setProcessingStatus] = useState<{
+    step: 'transcribing' | 'generating' | 'ready'
+    progress?: number
+    message: string
+  } | null>(null)
+  const [previousRankings, setPreviousRankings] = useState<LeaderboardEntry[]>([])
+
+  // Quiz phase state for enhanced message handling
+  const [quizPhase, setQuizPhase] = useState<QuizPhase>('not_started')
+  const [allAnswered, setAllAnswered] = useState(false)
+  const [answeredCount, setAnsweredCount] = useState(0)
+  const [currentPresenterName, setCurrentPresenterName] = useState<string | null>(null)
+  const [_segmentComplete, setSegmentComplete] = useState<{
+    segment_id: string
+    segment_title: string
+    presenter_name: string
+    segment_leaderboard: WsLeaderboardEntry[]
+    event_leaderboard: WsLeaderboardEntry[]
+    segment_winner?: WsLeaderboardEntry
+    event_leader?: WsLeaderboardEntry
+  } | null>(null)
+  const [_eventComplete, setEventComplete] = useState<{
+    event_id: string
+    final_leaderboard: WsLeaderboardEntry[]
+    winner?: WsLeaderboardEntry
+    segment_winners: SegmentWinner[]
+  } | null>(null)
 
   const qualityThreshold = 0.7
 
@@ -93,7 +128,12 @@ export function EventHostPage() {
   }
 
   // Audio WebSocket for live transcription & question generation
-  const { startRecording: startAudioCapture, stopRecording: stopAudioCapture } = useAudioWebSocket({
+  const {
+    startRecording: startAudioCapture,
+    stopRecording: stopAudioCapture,
+    audioCapabilities,
+    audioError,
+  } = useAudioWebSocket({
     segmentId: segmentId ?? '',
     onMessage: (msg: AudioServerMessage) => {
       if (msg.type === 'transcript_update') {
@@ -120,14 +160,60 @@ export function EventHostPage() {
       } else if (msg.type === 'game_started') {
         setIsQuizActive(true)
         setCurrentQuestionIndex(0)
-        setShowingAnswer(false)
       } else if (msg.type === 'reveal') {
-        setShowingAnswer(true)
+        // Reveal handled by phase change
       } else if (msg.type === 'leaderboard') {
+        setPreviousRankings(segmentRankings)
         setSegmentRankings(msg.rankings)
       } else if (msg.type === 'game_ended') {
         setIsQuizActive(false)
-        setShowingAnswer(false)
+      } else if (msg.type === 'processing_status') {
+        setProcessingStatus({
+          step: msg.step as 'transcribing' | 'generating' | 'ready',
+          progress: msg.progress,
+          message: msg.message,
+        })
+      } else if (msg.type === 'phase_changed') {
+        setQuizPhase(msg.phase)
+        setCurrentQuestionIndex(msg.question_index)
+        // Reset allAnswered when moving to a new question
+        if (msg.phase === 'showing_question') {
+          setAllAnswered(false)
+          setAnsweredCount(0)
+        }
+      } else if (msg.type === 'all_answered') {
+        setAllAnswered(true)
+        setAnsweredCount(msg.answer_count)
+      } else if (msg.type === 'answer_received') {
+        setAnsweredCount((prev) => prev + 1)
+      } else if (msg.type === 'presenter_changed') {
+        setCurrentPresenterName(msg.new_presenter_name)
+
+        // If I was the presenter and now I'm not, reset my state
+        if (user && msg.previous_presenter_id === user.id) {
+          setSegmentComplete(null)
+          // Optionally navigate to participant view
+          // navigate(`/events/${eventId}/participate/${msg.segment_id}`)
+        }
+      } else if (msg.type === 'segment_complete') {
+        setSegmentComplete({
+          segment_id: msg.segment_id,
+          segment_title: msg.segment_title,
+          presenter_name: msg.presenter_name,
+          segment_leaderboard: msg.segment_leaderboard,
+          event_leaderboard: msg.event_leaderboard,
+          segment_winner: msg.segment_winner,
+          event_leader: msg.event_leader,
+        })
+        setIsQuizActive(false)
+      } else if (msg.type === 'event_complete') {
+        setEventComplete({
+          event_id: msg.event_id,
+          final_leaderboard: msg.final_leaderboard,
+          winner: msg.winner,
+          segment_winners: msg.segment_winners,
+        })
+        setIsQuizActive(false)
       }
     },
   })
@@ -138,7 +224,6 @@ export function EventHostPage() {
   }
 
   const handleNextQuestion = () => {
-    setShowingAnswer(false)
     setCurrentQuestionIndex((prev) => prev + 1)
     sendMessage({ type: 'next_question' })
   }
@@ -267,6 +352,17 @@ export function EventHostPage() {
     )
   }
 
+  // Show processing screen when processing status is active
+  if (processingStatus) {
+    return (
+      <DisplayModeContainer
+        processingStatus={processingStatus}
+        rankings={segmentRankings}
+        previousRankings={previousRankings}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-950 to-dark-900">
       <div className="max-w-6xl mx-auto p-8 space-y-8">
@@ -285,6 +381,11 @@ export function EventHostPage() {
             <p className="text-gray-400 text-sm">
               Segment: <span className="font-semibold">{segment.title || segment.presenter_name}</span>
             </p>
+            {currentPresenterName && (
+              <div className="text-sm text-cyan-400 mt-1">
+                Current Presenter: {currentPresenterName}
+              </div>
+            )}
           </div>
           <div className="text-right">
             <div className="text-sm text-gray-500 mb-1">Join Code</div>
@@ -297,6 +398,17 @@ export function EventHostPage() {
           <div className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr] gap-6">
             <div className="bg-dark-900 rounded-lg p-6 border border-dark-700 space-y-4">
               <h2 className="text-lg font-semibold text-white mb-2">Recording Status</h2>
+              {/* Audio capability warnings */}
+              {audioError && (
+                <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm mb-4">
+                  ⚠️ {audioError}
+                </div>
+              )}
+              {audioCapabilities && !audioCapabilities.isOptimal && audioCapabilities.warning && (
+                <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-3 text-yellow-400 text-sm mb-4">
+                  ⚠️ {audioCapabilities.warning}
+                </div>
+              )}
               <RecordingStatus status={segment.status} startedAt={segment.recording_started_at} />
               <RecordingControls
                 status={segment.status}
@@ -346,8 +458,20 @@ export function EventHostPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            {!isQuizActive ? (
+          {/* Use PresenterControls for quiz flow */}
+          {isQuizActive && quizPhase !== 'segment_complete' && quizPhase !== 'event_complete' ? (
+            <PresenterControls
+              phase={quizPhase}
+              questionIndex={currentQuestionIndex}
+              totalQuestions={questions.length}
+              allAnswered={allAnswered}
+              onRevealAnswer={handleRevealAnswer}
+              onShowLeaderboard={handleShowLeaderboard}
+              onNextQuestion={handleNextQuestion}
+              onEndQuiz={handleEndQuiz}
+            />
+          ) : !isQuizActive ? (
+            <div className="flex flex-wrap gap-3">
               <Button
                 variant="primary"
                 onClick={handleStartQuiz}
@@ -357,66 +481,42 @@ export function EventHostPage() {
                 <Play className="w-4 h-4" />
                 Start Quiz ({questions.length} questions)
               </Button>
-            ) : (
-              <>
-                {!showingAnswer ? (
-                  <Button
-                    variant="primary"
-                    onClick={handleRevealAnswer}
-                    className="flex items-center gap-2"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Reveal Answer
-                  </Button>
-                ) : (
-                  <>
-                    {currentQuestionIndex < questions.length - 1 ? (
-                      <Button
-                        variant="primary"
-                        onClick={handleNextQuestion}
-                        className="flex items-center gap-2"
-                      >
-                        <SkipForward className="w-4 h-4" />
-                        Next Question ({currentQuestionIndex + 2}/{questions.length})
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="primary"
-                        onClick={handleShowLeaderboard}
-                        className="flex items-center gap-2"
-                      >
-                        <Trophy className="w-4 h-4" />
-                        Show Final Leaderboard
-                      </Button>
-                    )}
-                  </>
-                )}
+            </div>
+          ) : null}
 
-                <Button
-                  variant="secondary"
-                  onClick={handleShowLeaderboard}
-                  className="flex items-center gap-2"
-                >
-                  <Trophy className="w-4 h-4" />
-                  Leaderboard
-                </Button>
+          {/* Show answer progress when showing question */}
+          {isQuizActive && quizPhase === 'showing_question' && (
+            <div className="mt-4">
+              <AnswerProgress
+                answeredCount={answeredCount}
+                totalParticipants={participants.length}
+                allAnswered={allAnswered}
+              />
+            </div>
+          )}
 
-                <Button
-                  variant="secondary"
-                  onClick={handleEndQuiz}
-                  className="flex items-center gap-2"
-                >
-                  <Square className="w-4 h-4" />
-                  End Quiz
-                </Button>
-              </>
-            )}
-          </div>
-
-          {isQuizActive && (
-            <div className="mt-4 text-sm text-gray-400">
-              Question {currentQuestionIndex + 1} of {questions.length}
-              {showingAnswer && ' - Answer revealed'}
+          {/* Show segment complete view */}
+          {_segmentComplete && (
+            <div className="mt-4">
+              <SegmentCompleteView
+                segmentTitle={_segmentComplete.segment_title}
+                segmentLeaderboard={_segmentComplete.segment_leaderboard}
+                eventLeaderboard={_segmentComplete.event_leaderboard}
+                segmentWinner={_segmentComplete.segment_winner}
+                isPresenter={true}
+                onPassPresenter={() => {
+                  // Pass presenter button is handled inside SegmentCompleteView
+                }}
+              />
+              <div className="mt-4">
+                <PassPresenterButton
+                  participants={participants.map(p => ({ id: p.id, username: p.username, avatar_url: p.avatar_url }))}
+                  currentUserId={user?.id || ''}
+                  onPass={(nextPresenterId) => {
+                    sendMessage({ type: 'pass_presenter', next_presenter_user_id: nextPresenterId })
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>

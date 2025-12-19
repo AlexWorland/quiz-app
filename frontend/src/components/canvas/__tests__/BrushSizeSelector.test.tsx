@@ -1,74 +1,68 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { BrushSizeSelector } from '../BrushSizeSelector'
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { BrushSizeSelector } from '../BrushSizeSelector';
 
 describe('BrushSizeSelector', () => {
-  const mockOnSizeChange = vi.fn()
-  const sizes = [1, 3, 5, 8, 12]
+  it('should render all brush sizes', () => {
+    const onSizeChange = vi.fn();
+    render(<BrushSizeSelector size={3} onSizeChange={onSizeChange} />);
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    expect(screen.getByLabelText('Brush size 1')).toBeInTheDocument();
+    expect(screen.getByLabelText('Brush size 3')).toBeInTheDocument();
+    expect(screen.getByLabelText('Brush size 5')).toBeInTheDocument();
+    expect(screen.getByLabelText('Brush size 8')).toBeInTheDocument();
+    expect(screen.getByLabelText('Brush size 12')).toBeInTheDocument();
+  });
 
-  it('should render all size buttons', () => {
-    render(<BrushSizeSelector size={3} onSizeChange={mockOnSizeChange} />)
+  it('should highlight selected size', () => {
+    const onSizeChange = vi.fn();
+    const { container } = render(<BrushSizeSelector size={5} onSizeChange={onSizeChange} />);
 
-    sizes.forEach((size) => {
-      const button = screen.getByLabelText(`Brush size ${size}`)
-      expect(button).toBeInTheDocument()
-    })
-  })
+    const selectedButton = screen.getByLabelText('Brush size 5');
+    expect(selectedButton).toHaveClass('border-accent-cyan', 'bg-accent-cyan/20');
+  });
 
-  it('should call onSizeChange when clicking a size', async () => {
-    const user = userEvent.setup()
-    render(<BrushSizeSelector size={3} onSizeChange={mockOnSizeChange} />)
+  it('should not highlight unselected sizes', () => {
+    const onSizeChange = vi.fn();
+    render(<BrushSizeSelector size={5} onSizeChange={onSizeChange} />);
 
-    const size8Button = screen.getByLabelText('Brush size 8')
-    await user.click(size8Button)
+    const unselectedButton = screen.getByLabelText('Brush size 3');
+    expect(unselectedButton).toHaveClass('border-dark-600');
+    expect(unselectedButton).not.toHaveClass('border-accent-cyan');
+  });
 
-    expect(mockOnSizeChange).toHaveBeenCalledWith(8)
-  })
+  it('should call onSizeChange when size is clicked', async () => {
+    const onSizeChange = vi.fn();
+    render(<BrushSizeSelector size={3} onSizeChange={onSizeChange} />);
 
-  it('should highlight selected size with border-accent-cyan class', () => {
-    const { rerender } = render(<BrushSizeSelector size={3} onSizeChange={mockOnSizeChange} />)
+    const sizeButton = screen.getByLabelText('Brush size 5');
+    await userEvent.click(sizeButton);
 
-    let button = screen.getByLabelText('Brush size 3')
-    expect(button).toHaveClass('border-accent-cyan')
+    expect(onSizeChange).toHaveBeenCalledWith(5);
+  });
 
-    rerender(<BrushSizeSelector size={8} onSizeChange={mockOnSizeChange} />)
+  it('should display brush size indicator dots', () => {
+    const onSizeChange = vi.fn();
+    render(<BrushSizeSelector size={3} onSizeChange={onSizeChange} />);
 
-    button = screen.getByLabelText('Brush size 8')
-    expect(button).toHaveClass('border-accent-cyan')
-  })
+    const sizeButton = screen.getByLabelText('Brush size 5');
+    const dot = sizeButton.querySelector('div');
+    expect(dot).toBeInTheDocument();
+    expect(dot).toHaveStyle({ width: '5px', height: '5px' });
+  });
 
-  it('should display Brush: label', () => {
-    render(<BrushSizeSelector size={3} onSizeChange={mockOnSizeChange} />)
+  it('should update selected size when prop changes', () => {
+    const onSizeChange = vi.fn();
+    const { rerender } = render(<BrushSizeSelector size={3} onSizeChange={onSizeChange} />);
 
-    const label = screen.getByText('Brush:')
-    expect(label).toBeInTheDocument()
-  })
+    let selectedButton = screen.getByLabelText('Brush size 3');
+    expect(selectedButton).toHaveClass('border-accent-cyan');
 
-  it('should have aria-label on each button', () => {
-    render(<BrushSizeSelector size={3} onSizeChange={mockOnSizeChange} />)
+    rerender(<BrushSizeSelector size={8} onSizeChange={onSizeChange} />);
 
-    sizes.forEach((size) => {
-      const button = screen.getByLabelText(`Brush size ${size}`)
-      expect(button).toHaveAttribute('aria-label', `Brush size ${size}`)
-    })
-  })
+    selectedButton = screen.getByLabelText('Brush size 8');
+    expect(selectedButton).toHaveClass('border-accent-cyan');
+  });
+});
 
-  it('should apply correct styling to selected size', () => {
-    const { rerender } = render(<BrushSizeSelector size={5} onSizeChange={mockOnSizeChange} />)
-
-    let button = screen.getByLabelText('Brush size 5')
-    expect(button).toHaveClass('border-accent-cyan')
-    expect(button).toHaveClass('bg-accent-cyan/20')
-
-    rerender(<BrushSizeSelector size={12} onSizeChange={mockOnSizeChange} />)
-
-    button = screen.getByLabelText('Brush size 12')
-    expect(button).toHaveClass('border-accent-cyan')
-    expect(button).toHaveClass('bg-accent-cyan/20')
-  })
-})

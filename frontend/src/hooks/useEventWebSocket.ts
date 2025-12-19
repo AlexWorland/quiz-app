@@ -30,19 +30,42 @@ export interface LeaderboardEntry {
   score: number
 }
 
+export interface SegmentWinner {
+  segment_id: string
+  segment_title: string
+  winner_name: string
+  winner_score: number
+}
+
+export type QuizPhase =
+  | 'not_started'
+  | 'showing_question'
+  | 'revealing_answer'
+  | 'showing_leaderboard'
+  | 'between_questions'
+  | 'segment_complete'
+  | 'event_complete'
+
 export type ServerMessage =
   | { type: 'connected'; participants: Participant[] }
   | { type: 'participant_joined'; user: Participant }
   | { type: 'participant_left'; user_id: string }
   | { type: 'game_started' }
-  | { type: 'question'; question_id: string; text: string; answers: string[]; time_limit: number }
+  | { type: 'question'; question_id: string; question_number: number; total_questions: number; text: string; answers: string[]; time_limit: number }
   | { type: 'time_update'; remaining_seconds: number }
   | { type: 'answer_received'; user_id: string }
-  | { type: 'reveal'; correct_answer: string; distribution: AnswerDistribution[]; segment_leaderboard: LeaderboardEntry[]; event_leaderboard: LeaderboardEntry[] }
+  | { type: 'reveal'; question_id: string; question_number: number; question_text: string; correct_answer: string; distribution: AnswerDistribution[]; segment_leaderboard: LeaderboardEntry[]; event_leaderboard: LeaderboardEntry[] }
   | { type: 'scores_update'; scores: Array<{ user_id: string; username: string; score: number; delta: number }> }
   | { type: 'leaderboard'; rankings: LeaderboardEntry[] }
   | { type: 'game_ended' }
   | { type: 'error'; message: string }
+  | { type: 'processing_status'; step: string; progress?: number; message: string }
+  | { type: 'display_mode'; mode: string; data: unknown }
+  | { type: 'phase_changed'; phase: QuizPhase; question_index: number; total_questions: number }
+  | { type: 'all_answered'; answer_count: number; total_participants: number }
+  | { type: 'presenter_changed'; previous_presenter_id: string; new_presenter_id: string; new_presenter_name: string; segment_id: string }
+  | { type: 'segment_complete'; segment_id: string; segment_title: string; presenter_name: string; segment_leaderboard: LeaderboardEntry[]; event_leaderboard: LeaderboardEntry[]; segment_winner?: LeaderboardEntry; event_leader?: LeaderboardEntry }
+  | { type: 'event_complete'; event_id: string; final_leaderboard: LeaderboardEntry[]; winner?: LeaderboardEntry; segment_winners: SegmentWinner[] }
 
 export type GameMessage =
   | { type: 'join'; user_id: string; session_code: string }
@@ -52,6 +75,7 @@ export type GameMessage =
   | { type: 'reveal_answer' }
   | { type: 'show_leaderboard' }
   | { type: 'end_game' }
+  | { type: 'pass_presenter'; next_presenter_user_id: string }
 
 interface UseEventWebSocketOptions {
   eventId: string
@@ -126,7 +150,7 @@ export function useEventWebSocket(options: UseEventWebSocketOptions) {
 
       // Auto-reconnect if enabled
       if (autoReconnect) {
-        reconnectTimeoutRef.current = setTimeout(() => {
+        reconnectTimeoutRef.current = window.setTimeout(() => {
           connect()
         }, reconnectInterval)
       }

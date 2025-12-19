@@ -3,27 +3,43 @@ import { useAuthStore } from '@/store/authStore'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080'
 
+export interface AudioCapabilities {
+  mimeType: string
+  isOptimal: boolean
+  warning?: string
+}
+
 /**
  * Detect the best supported audio MIME type for MediaRecorder
- * Returns the first supported format, or null if none are supported
+ * Returns capability info including whether it's optimal and any warnings
  */
-function getSupportedAudioMimeType(): string | null {
-  const types = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/ogg;codecs=opus',
-    'audio/mp4',
-    'audio/wav',
+export function detectAudioCapabilities(): AudioCapabilities | null {
+  const optimal = 'audio/webm;codecs=opus'
+
+  if (MediaRecorder.isTypeSupported(optimal)) {
+    return { mimeType: optimal, isOptimal: true }
+  }
+
+  const fallbacks = [
+    { type: 'audio/webm', warning: 'Using WebM without Opus codec (may have compatibility issues)' },
+    { type: 'audio/ogg;codecs=opus', warning: 'Using OGG format (may have compatibility issues)' },
+    { type: 'audio/mp4', warning: 'Using MP4 format (larger file sizes, higher bandwidth)' },
+    { type: 'audio/wav', warning: 'Using WAV format (no compression, very high bandwidth)' },
   ]
-  
-  for (const type of types) {
-    if (MediaRecorder.isTypeSupported(type)) {
-      return type
+
+  for (const fallback of fallbacks) {
+    if (MediaRecorder.isTypeSupported(fallback.type)) {
+      return {
+        mimeType: fallback.type,
+        isOptimal: false,
+        warning: fallback.warning,
+      }
     }
   }
-  
+
   return null
 }
+
 
 export interface TranscriptUpdate {
   text: string
@@ -55,11 +71,22 @@ interface UseAudioWebSocketOptions {
 export function useAudioWebSocket(options: UseAudioWebSocketOptions) {
   const { segmentId, onMessage, onError, onOpen, onClose, autoReconnect = true, reconnectInterval = 3000 } = options
   const [isConnected, setIsConnected] = useState(false)
+  const [audioCapabilities, setAudioCapabilities] = useState<AudioCapabilities | null>(null)
+  const [audioError, setAudioError] = useState<string | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const token = useAuthStore((state) => state.token)
+
+  // Detect audio capabilities on mount
+  useEffect(() => {
+    const caps = detectAudioCapabilities()
+    setAudioCapabilities(caps)
+    if (!caps) {
+      setAudioError('Your browser does not support audio recording. Please use Chrome, Firefox, or Edge.')
+    }
+  }, [])
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -94,7 +121,7 @@ export function useAudioWebSocket(options: UseAudioWebSocketOptions) {
 
       // Auto-reconnect if enabled
       if (autoReconnect) {
-        reconnectTimeoutRef.current = setTimeout(() => {
+        reconnectTimeoutRef.current = window.setTimeout(() => {
           connect()
         }, reconnectInterval)
       }
@@ -119,13 +146,13 @@ export function useAudioWebSocket(options: UseAudioWebSocketOptions) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       
       // Detect supported audio MIME type with fallback
-      const supportedMimeType = getSupportedAudioMimeType()
-      if (!supportedMimeType) {
+      const caps = detectAudioCapabilities()
+      if (!caps) {
         throw new Error('No supported audio format found in this browser')
       }
       
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: supportedMimeType,
+        mimeType: caps.mimeType,
       })
 
       mediaRecorder.ondataavailable = (event) => {
@@ -172,6 +199,8 @@ export function useAudioWebSocket(options: UseAudioWebSocketOptions) {
     stopRecording,
     connect,
     disconnect,
+    audioCapabilities,
+    audioError,
   }
 }
 

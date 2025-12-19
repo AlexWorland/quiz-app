@@ -1,5 +1,5 @@
 # Build stage
-FROM rust:latest as builder
+FROM rust:1.83-bookworm as builder
 
 WORKDIR /app
 
@@ -19,8 +19,8 @@ COPY migrations migrations/
 # Build the application
 RUN cargo build --release
 
-# Runtime stage - use testing for newer GLIBC
-FROM debian:trixie-slim
+# Runtime stage
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
@@ -36,9 +36,6 @@ RUN apt-get update && apt-get install -y \
 COPY --from=builder /app/target/release/quiz-backend /usr/local/bin/quiz-backend
 COPY --from=builder /app/migrations ./migrations/
 
-# Create .env for migrations (not used in runtime, but kept for reference)
-RUN echo "DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz" > .env
-
 # Expose port
 EXPOSE 8080
 
@@ -47,5 +44,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/api/health || exit 1
 
 # Run the application
-# Use shell form to ensure proper signal handling
-CMD /usr/local/bin/quiz-backend
+CMD ["/usr/local/bin/quiz-backend"]

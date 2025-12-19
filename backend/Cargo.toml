@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["Quiz App Team"]
 description = "Real-time multiplayer quiz application backend"
 
+[lib]
+name = "quiz_backend"
+path = "src/lib.rs"
+
 [dependencies]
 # Web framework
 axum = { version = "0.7", features = ["ws", "multipart"] }
@@ -58,3 +62,4 @@ aws-config = "1"
 
 [dev-dependencies]
 tokio-test = "0.4"
+axum-test = "14"

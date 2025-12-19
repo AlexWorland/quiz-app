@@ -596,67 +596,69 @@ impl DeepgramStreamingClient {
     /// - JSON parsing fails (malformed response)
     /// - WebSocket error (connection dropped)
     pub async fn receive_transcript(&mut self) -> Result<Option<TranscriptionResult>> {
-        let receiver = self.receiver.as_mut().ok_or_else(|| {
-            AppError::Internal("Not connected. Call connect() first.".to_string())
-        })?;
+        loop {
+            let receiver = self.receiver.as_mut().ok_or_else(|| {
+                AppError::Internal("Not connected. Call connect() first.".to_string())
+            })?;
 
-        // Read next WebSocket message
-        match receiver.next().await {
-            Some(Ok(message)) => match message {
-                Message::Text(text) => {
-                    tracing::debug!("Received text message: {}", text);
+            // Read next WebSocket message
+            match receiver.next().await {
+                Some(Ok(message)) => match message {
+                    Message::Text(text) => {
+                        tracing::debug!("Received text message: {}", text);
 
-                    // Parse JSON response from Deepgram
-                    let response: DeepgramResponse = serde_json::from_str(&text).map_err(|e| {
-                        AppError::Internal(format!("Failed to parse Deepgram response: {}", e))
-                    })?;
+                        // Parse JSON response from Deepgram
+                        let response: DeepgramResponse = serde_json::from_str(&text).map_err(|e| {
+                            AppError::Internal(format!("Failed to parse Deepgram response: {}", e))
+                        })?;
 
-                    // Extract transcript from first alternative
-                    let transcript = response
-                        .channel
-                        .alternatives
-                        .first()
-                        .map(|alt| alt.transcript.clone())
-                        .unwrap_or_default();
+                        // Extract transcript from first alternative
+                        let transcript = response
+                            .channel
+                            .alternatives
+                            .first()
+                            .map(|alt| alt.transcript.clone())
+                            .unwrap_or_default();
 
-                    let confidence = response
-                        .channel
-                        .alternatives
-                        .first()
-                        .map(|alt| alt.confidence);
+                        let confidence = response
+                            .channel
+                            .alternatives
+                            .first()
+                            .map(|alt| alt.confidence);
 
-                    // Skip empty transcripts (Deepgram sometimes sends these)
-                    if transcript.is_empty() {
-                        tracing::debug!("Skipping empty transcript");
-                        return self.receive_transcript().await;
+                        // Skip empty transcripts (Deepgram sometimes sends these)
+                        if transcript.is_empty() {
+                            tracing::debug!("Skipping empty transcript");
+                            continue;
+                        }
+
+                        return Ok(Some(TranscriptionResult {
+                            text: transcript,
+                            is_final: response.is_final,
+                            confidence,
+                        }));
                     }
-
-                    Ok(Some(TranscriptionResult {
-                        text: transcript,
-                        is_final: response.is_final,
-                        confidence,
-                    }))
+                    Message::Close(frame) => {
+                        tracing::info!("WebSocket closed by server: {:?}", frame);
+                        return Ok(None);
+                    }
+                    Message::Ping(_) | Message::Pong(_) => {
+                        // Automatically handled by tungstenite, just continue
+                        continue;
+                    }
+                    _ => {
+                        tracing::debug!("Ignoring non-text message");
+                        continue;
+                    }
+                },
+                Some(Err(e)) => {
+                    tracing::error!("WebSocket error: {}", e);
+                    return Err(AppError::Internal(format!("WebSocket error: {}", e)));
                 }
-                Message::Close(frame) => {
-                    tracing::info!("WebSocket closed by server: {:?}", frame);
-                    Ok(None)
+                None => {
+                    tracing::info!("WebSocket stream ended");
+                    return Ok(None);
                 }
-                Message::Ping(_) | Message::Pong(_) => {
-                    // Automatically handled by tungstenite, just continue
-                    self.receive_transcript().await
-                }
-                _ => {
-                    tracing::debug!("Ignoring non-text message");
-                    self.receive_transcript().await
-                }
-            },
-            Some(Err(e)) => {
-                tracing::error!("WebSocket error: {}", e);
-                Err(AppError::Internal(format!("WebSocket error: {}", e)))
-            }
-            None => {
-                tracing::info!("WebSocket stream ended");
-                Ok(None)
             }
         }
     }
@@ -913,56 +915,58 @@ impl AssemblyAIStreamingClient {
     /// - JSON parsing fails (malformed response)
     /// - WebSocket error (connection dropped)
     pub async fn receive_transcript(&mut self) -> Result<Option<TranscriptionResult>> {
-        let receiver = self.receiver.as_mut().ok_or_else(|| {
-            AppError::Internal("Not connected. Call connect() first.".to_string())
-        })?;
+        loop {
+            let receiver = self.receiver.as_mut().ok_or_else(|| {
+                AppError::Internal("Not connected. Call connect() first.".to_string())
+            })?;
 
-        // Read next WebSocket message
-        match receiver.next().await {
-            Some(Ok(message)) => match message {
-                Message::Text(text) => {
-                    tracing::debug!("Received text message: {}", text);
+            // Read next WebSocket message
+            match receiver.next().await {
+                Some(Ok(message)) => match message {
+                    Message::Text(text) => {
+                        tracing::debug!("Received text message: {}", text);
 
-                    // Parse JSON response from AssemblyAI
-                    let response: AssemblyAIResponse = serde_json::from_str(&text).map_err(|e| {
-                        AppError::Internal(format!("Failed to parse AssemblyAI response: {}", e))
-                    })?;
+                        // Parse JSON response from AssemblyAI
+                        let response: AssemblyAIResponse = serde_json::from_str(&text).map_err(|e| {
+                            AppError::Internal(format!("Failed to parse AssemblyAI response: {}", e))
+                        })?;
 
-                    // Skip empty transcripts
-                    if response.text.is_empty() {
-                        tracing::debug!("Skipping empty transcript");
-                        return self.receive_transcript().await;
+                        // Skip empty transcripts
+                        if response.text.is_empty() {
+                            tracing::debug!("Skipping empty transcript");
+                            continue;
+                        }
+
+                        // Determine if this is a final transcript based on message_type
+                        let is_final = response.message_type == "FinalTranscript";
+
+                        return Ok(Some(TranscriptionResult {
+                            text: response.text,
+                            is_final,
+                            confidence: Some(response.confidence as f32),
+                        }));
                     }
-
-                    // Determine if this is a final transcript based on message_type
-                    let is_final = response.message_type == "FinalTranscript";
-
-                    Ok(Some(TranscriptionResult {
-                        text: response.text,
-                        is_final,
-                        confidence: Some(response.confidence as f32),
-                    }))
+                    Message::Close(frame) => {
+                        tracing::info!("WebSocket closed by server: {:?}", frame);
+                        return Ok(None);
+                    }
+                    Message::Ping(_) | Message::Pong(_) => {
+                        // Automatically handled by tungstenite, just continue
+                        continue;
+                    }
+                    _ => {
+                        tracing::debug!("Ignoring non-text message");
+                        continue;
+                    }
+                },
+                Some(Err(e)) => {
+                    tracing::error!("WebSocket error: {}", e);
+                    return Err(AppError::Internal(format!("WebSocket error: {}", e)));
                 }
-                Message::Close(frame) => {
-                    tracing::info!("WebSocket closed by server: {:?}", frame);
-                    Ok(None)
+                None => {
+                    tracing::info!("WebSocket stream ended");
+                    return Ok(None);
                 }
-                Message::Ping(_) | Message::Pong(_) => {
-                    // Automatically handled by tungstenite, just continue
-                    self.receive_transcript().await
-                }
-                _ => {
-                    tracing::debug!("Ignoring non-text message");
-                    self.receive_transcript().await
-                }
-            },
-            Some(Err(e)) => {
-                tracing::error!("WebSocket error: {}", e);
-                Err(AppError::Internal(format!("WebSocket error: {}", e)))
-            }
-            None => {
-                tracing::info!("WebSocket stream ended");
-                Ok(None)
             }
         }
     }

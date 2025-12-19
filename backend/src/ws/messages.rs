@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use crate::ws::hub::QuizPhase;
 
 /// Message types for game WebSocket
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +27,10 @@ pub enum GameMessage {
     ShowLeaderboard,
     #[serde(rename = "end_game")]
     EndGame,
+    #[serde(rename = "pass_presenter")]
+    PassPresenter {
+        next_presenter_user_id: Uuid,
+    },
 }
 
 /// Server-sent messages
@@ -43,6 +48,8 @@ pub enum ServerMessage {
     #[serde(rename = "question")]
     Question {
         question_id: Uuid,
+        question_number: i32,
+        total_questions: i32,
         text: String,
         answers: Vec<String>,
         time_limit: i32,
@@ -53,6 +60,9 @@ pub enum ServerMessage {
     AnswerReceived { user_id: Uuid },
     #[serde(rename = "reveal")]
     Reveal {
+        question_id: Uuid,
+        question_number: i32,
+        question_text: String,
         correct_answer: String,
         distribution: Vec<AnswerDistributionMessage>,
         segment_leaderboard: Vec<LeaderboardEntry>,
@@ -70,6 +80,61 @@ pub enum ServerMessage {
     GameEnded,
     #[serde(rename = "error")]
     Error { message: String },
+    #[serde(rename = "processing_status")]
+    ProcessingStatus {
+        step: String,           // "transcribing", "generating", "ready"
+        progress: Option<i32>,  // 0-100 percentage
+        message: String,
+    },
+    #[serde(rename = "display_mode")]
+    DisplayMode {
+        mode: String,           // "leaderboard", "question_results", "quiz_progress", "final_results"
+        data: serde_json::Value,
+    },
+    #[serde(rename = "phase_changed")]
+    PhaseChanged {
+        phase: QuizPhase,
+        question_index: i32,
+        total_questions: i32,
+    },
+    #[serde(rename = "all_answered")]
+    AllAnswered {
+        answer_count: usize,
+        total_participants: usize,
+    },
+    #[serde(rename = "presenter_changed")]
+    PresenterChanged {
+        previous_presenter_id: Uuid,
+        new_presenter_id: Uuid,
+        new_presenter_name: String,
+        segment_id: Uuid,
+    },
+    #[serde(rename = "segment_complete")]
+    SegmentComplete {
+        segment_id: Uuid,
+        segment_title: String,
+        presenter_name: String,
+        segment_leaderboard: Vec<LeaderboardEntry>,
+        event_leaderboard: Vec<LeaderboardEntry>,
+        segment_winner: Option<LeaderboardEntry>,
+        event_leader: Option<LeaderboardEntry>,
+    },
+    #[serde(rename = "event_complete")]
+    EventComplete {
+        event_id: Uuid,
+        final_leaderboard: Vec<LeaderboardEntry>,
+        winner: Option<LeaderboardEntry>,
+        segment_winners: Vec<SegmentWinner>,
+    },
+}
+
+/// Segment winner information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SegmentWinner {
+    pub segment_id: Uuid,
+    pub segment_title: String,
+    pub winner_name: String,
+    pub winner_score: i32,
 }
 
 /// Participant info in messages

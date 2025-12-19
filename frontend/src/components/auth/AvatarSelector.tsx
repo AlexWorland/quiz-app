@@ -37,6 +37,13 @@ export function AvatarSelector({ onSelect, loading = false }: AvatarSelectorProp
   const [loadingImages, setLoadingImages] = useState(false)
   const [selectedEmoji, setSelectedEmoji] = useState(EMOJI_AVATARS[0])
 
+  // Call onSelect with default emoji on mount (only once)
+  useEffect(() => {
+    // Call onSelect with default emoji when component mounts and emoji tab is active
+    onSelect(selectedEmoji, 'emoji', null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only on mount - onSelect and selectedEmoji are stable
+
   useEffect(() => {
     if (tab === 'stock') {
       loadStockImages()

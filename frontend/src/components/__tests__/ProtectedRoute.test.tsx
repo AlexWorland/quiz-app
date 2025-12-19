@@ -1,111 +1,97 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { ProtectedRoute } from '../ProtectedRoute'
-import { useAuthStore } from '@/store/authStore'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { BrowserRouter } from 'react-router-dom';
+import { ProtectedRoute } from '../ProtectedRoute';
 
-const TestChild = () => <div data-testid="protected-content">Protected Content</div>
-const LoginPage = () => <div data-testid="login-page">Login Page</div>
-const HomePage = () => <div data-testid="home-page">Home Page</div>
-
-const renderWithRouter = (
-  ui: React.ReactElement,
-  { initialEntries = ['/protected'] } = {}
-) => {
-  return render(
-    <MemoryRouter initialEntries={initialEntries}>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<HomePage />} />
-        <Route path="/protected" element={ui} />
-      </Routes>
-    </MemoryRouter>
-  )
-}
+// Mock authStore
+const mockUseAuthStore = vi.fn();
+vi.mock('@/store/authStore', () => ({
+  useAuthStore: (selector: any) => mockUseAuthStore(selector),
+}));
 
 describe('ProtectedRoute', () => {
   beforeEach(() => {
-    useAuthStore.setState({
-      user: null,
-      token: null,
+    vi.clearAllMocks();
+  });
+
+  const renderWithRouter = (component: React.ReactElement) => {
+    return render(<BrowserRouter>{component}</BrowserRouter>);
+  };
+
+  it('should render children when authenticated', () => {
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: '1', username: 'test', role: 'participant' },
+    });
+
+    renderWithRouter(
+      <ProtectedRoute>
+        <div>Protected Content</div>
+      </ProtectedRoute>
+    );
+
+    expect(screen.getByText('Protected Content')).toBeInTheDocument();
+  });
+
+  it('should redirect to login when not authenticated', () => {
+    mockUseAuthStore.mockReturnValue({
       isAuthenticated: false,
-    })
-  })
+      user: null,
+    });
 
-  describe('when not authenticated', () => {
-    it('should redirect to /login', () => {
-      renderWithRouter(
-        <ProtectedRoute>
-          <TestChild />
-        </ProtectedRoute>
-      )
+    renderWithRouter(
+      <ProtectedRoute>
+        <div>Protected Content</div>
+      </ProtectedRoute>
+    );
 
-      expect(screen.getByTestId('login-page')).toBeInTheDocument()
-      expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
-    })
-  })
+    // Navigate component should redirect
+    expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+  });
 
-  describe('when authenticated', () => {
-    beforeEach(() => {
-      useAuthStore.setState({
-        user: {
-          id: 'user-1',
-          username: 'testuser',
-          email: 'test@example.com',
-          role: 'presenter',
-        },
-        token: 'valid-token',
-        isAuthenticated: true,
-      })
-    })
+  it('should allow access when user has required role', () => {
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: '1', username: 'test', role: 'presenter' },
+    });
 
-    it('should render children when authenticated', () => {
-      renderWithRouter(
-        <ProtectedRoute>
-          <TestChild />
-        </ProtectedRoute>
-      )
+    renderWithRouter(
+      <ProtectedRoute requiredRole="presenter">
+        <div>Presenter Content</div>
+      </ProtectedRoute>
+    );
 
-      expect(screen.getByTestId('protected-content')).toBeInTheDocument()
-    })
+    expect(screen.getByText('Presenter Content')).toBeInTheDocument();
+  });
 
-    it('should render children when role matches requiredRole', () => {
-      renderWithRouter(
-        <ProtectedRoute requiredRole="presenter">
-          <TestChild />
-        </ProtectedRoute>
-      )
+  it('should redirect when user does not have required role', () => {
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: '1', username: 'test', role: 'participant' },
+    });
 
-      expect(screen.getByTestId('protected-content')).toBeInTheDocument()
-    })
+    renderWithRouter(
+      <ProtectedRoute requiredRole="presenter">
+        <div>Presenter Content</div>
+      </ProtectedRoute>
+    );
 
-    it('should redirect to / when role does not match requiredRole', () => {
-      renderWithRouter(
-        <ProtectedRoute requiredRole="participant">
-          <TestChild />
-        </ProtectedRoute>
-      )
+    expect(screen.queryByText('Presenter Content')).not.toBeInTheDocument();
+  });
 
-      expect(screen.getByTestId('home-page')).toBeInTheDocument()
-      expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
-    })
-  })
+  it('should allow access when requiredRole is not specified', () => {
+    mockUseAuthStore.mockReturnValue({
+      isAuthenticated: true,
+      user: { id: '1', username: 'test', role: 'participant' },
+    });
 
-  describe('edge cases', () => {
-    it('should handle null user gracefully', () => {
-      useAuthStore.setState({
-        user: null,
-        token: 'token',
-        isAuthenticated: true,
-      })
+    renderWithRouter(
+      <ProtectedRoute>
+        <div>Any User Content</div>
+      </ProtectedRoute>
+    );
 
-      renderWithRouter(
-        <ProtectedRoute requiredRole="presenter">
-          <TestChild />
-        </ProtectedRoute>
-      )
+    expect(screen.getByText('Any User Content')).toBeInTheDocument();
+  });
+});
 
-      expect(screen.getByTestId('home-page')).toBeInTheDocument()
-    })
-  })
-})

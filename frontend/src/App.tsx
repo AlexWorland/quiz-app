@@ -5,9 +5,9 @@ import { RegisterPage } from './pages/Register'
 import { HomePage } from './pages/Home'
 import { EventsPage } from './pages/Events'
 import { EventDetailPage } from './pages/EventDetail'
-import { EventHostPage } from './pages/EventHost'
-import { EventParticipantPage } from './pages/EventParticipant'
+import { EventPage } from './pages/EventPage'
 import { JoinEventPage } from './pages/JoinEvent'
+import { TestRunnerPage } from './pages/TestRunner'
 import { ProtectedRoute } from './components/ProtectedRoute'
 
 function App() {
@@ -63,11 +63,22 @@ function App() {
           }
         />
 
+        {/* Unified event page - determines presenter/participant role automatically */}
+        <Route
+          path="/events/:eventId/segments/:segmentId"
+          element={
+            <ProtectedRoute>
+              <EventPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Backward compatibility redirects */}
         <Route
           path="/events/:eventId/segments/:segmentId/host"
           element={
             <ProtectedRoute>
-              <EventHostPage />
+              <EventPage />
             </ProtectedRoute>
           }
         />
@@ -76,10 +87,22 @@ function App() {
           path="/events/:eventId/segments/:segmentId/participant"
           element={
             <ProtectedRoute>
-              <EventParticipantPage />
+              <EventPage />
             </ProtectedRoute>
           }
         />
+
+        {/* Test Runner (development only) */}
+        {import.meta.env.DEV && (
+          <Route
+            path="/test-runner"
+            element={
+              <ProtectedRoute>
+                <TestRunnerPage />
+              </ProtectedRoute>
+            }
+          />
+        )}
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -25,6 +25,7 @@ pub struct Segment {
     pub id: Uuid,
     pub event_id: Uuid,
     pub presenter_name: String,
+    pub presenter_user_id: Option<Uuid>,
     pub title: Option<String>,
     pub order_index: i32,
     pub status: String, // "pending", "recording", "recording_paused", "quiz_ready", "quizzing", "completed"
@@ -74,6 +75,7 @@ pub struct SegmentResponse {
     pub id: Uuid,
     pub event_id: Uuid,
     pub presenter_name: String,
+    pub presenter_user_id: Option<Uuid>,
     pub title: Option<String>,
     pub order_index: i32,
     pub status: String,
@@ -89,6 +91,7 @@ impl From<Segment> for SegmentResponse {
             id: segment.id,
             event_id: segment.event_id,
             presenter_name: segment.presenter_name,
+            presenter_user_id: segment.presenter_user_id,
             title: segment.title,
             order_index: segment.order_index,
             status: segment.status,
@@ -126,6 +129,7 @@ pub struct UpdateEventRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateSegmentRequest {
     pub presenter_name: String,
+    pub presenter_user_id: Option<Uuid>,
     pub title: Option<String>,
 }
 

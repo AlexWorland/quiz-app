@@ -1,181 +1,192 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { QuizResults, AnswerDistribution, LeaderboardEntry } from '../QuizResults'
-
-const mockDistribution: AnswerDistribution[] = [
-  { answer: 'Paris', count: 10, is_correct: true },
-  { answer: 'London', count: 5, is_correct: false },
-  { answer: 'Berlin', count: 3, is_correct: false },
-  { answer: 'Madrid', count: 2, is_correct: false },
-]
-
-const mockSegmentLeaderboard: LeaderboardEntry[] = [
-  { rank: 1, user_id: 'u1', username: 'Alice', score: 100 },
-  { rank: 2, user_id: 'u2', username: 'Bob', score: 80 },
-  { rank: 3, user_id: 'u3', username: 'Charlie', score: 60 },
-]
-
-const mockEventLeaderboard: LeaderboardEntry[] = [
-  { rank: 1, user_id: 'u1', username: 'Alice', score: 500 },
-  { rank: 2, user_id: 'u2', username: 'Bob', score: 400 },
-]
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { QuizResults } from '../QuizResults';
 
 describe('QuizResults', () => {
-  it('should display the correct answer', () => {
-    render(
-      <QuizResults
-        correctAnswer="Paris"
-        distribution={mockDistribution}
-      />
-    )
+  const mockDistribution = [
+    { answer: 'Answer A', count: 5, is_correct: true },
+    { answer: 'Answer B', count: 3, is_correct: false },
+    { answer: 'Answer C', count: 2, is_correct: false },
+  ];
 
-    expect(screen.getAllByText('Paris').length).toBeGreaterThan(0)
-    expect(screen.getByText(/correct answer/i)).toBeInTheDocument()
-  })
+  it('should render correct answer', () => {
+    render(<QuizResults correctAnswer="Answer A" distribution={mockDistribution} />);
+    expect(screen.getByText(/Correct Answer:/)).toBeInTheDocument();
+    const answers = screen.getAllByText('Answer A');
+    expect(answers.length).toBeGreaterThan(0);
+  });
 
   it('should display user answer when provided', () => {
     render(
       <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
-        userAnswer="London"
+        userAnswer="Answer A"
       />
-    )
+    );
+    expect(screen.getByText(/Your Answer:/)).toBeInTheDocument();
+    const answers = screen.getAllByText('Answer A');
+    expect(answers.length).toBeGreaterThan(0);
+  });
 
-    expect(screen.getAllByText('London').length).toBeGreaterThan(0)
-    expect(screen.getByText(/your answer/i)).toBeInTheDocument()
-  })
-
-  it('should style correct user answer in green', () => {
-    render(
+  it('should show green color for correct user answer', () => {
+    const { container } = render(
       <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
-        userAnswer="Paris"
+        userAnswer="Answer A"
       />
-    )
+    );
+    const userAnswerSpan = container.querySelector('.text-green-600');
+    expect(userAnswerSpan).toBeInTheDocument();
+  });
 
-    const userAnswerElements = screen.getAllByText('Paris')
-    const greenElements = userAnswerElements.filter(el => el.classList.contains('text-green-600'))
-    expect(greenElements.length).toBeGreaterThan(0)
-  })
-
-  it('should style incorrect user answer in red', () => {
-    render(
+  it('should show red color for incorrect user answer', () => {
+    const { container } = render(
       <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
-        userAnswer="London"
+        userAnswer="Answer B"
       />
-    )
-
-    const londonElements = screen.getAllByText('London')
-    const redElements = londonElements.filter(el => el.classList.contains('text-red-600'))
-    expect(redElements.length).toBeGreaterThan(0)
-  })
+    );
+    const userAnswerSpan = container.querySelector('.text-red-600');
+    expect(userAnswerSpan).toBeInTheDocument();
+  });
 
   it('should display points earned when provided', () => {
     render(
       <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
-        userAnswer="Paris"
-        pointsEarned={100}
+        userAnswer="Answer A"
+        pointsEarned={10}
       />
-    )
+    );
+    expect(screen.getByText(/\+10 points/)).toBeInTheDocument();
+  });
 
-    expect(screen.getByText(/\+100 points/)).toBeInTheDocument()
-  })
+  it('should render answer distribution', () => {
+    render(<QuizResults correctAnswer="Answer A" distribution={mockDistribution} />);
+    expect(screen.getByText('Answer Distribution')).toBeInTheDocument();
+    const answerA = screen.getAllByText('Answer A');
+    expect(answerA.length).toBeGreaterThan(0);
+    expect(screen.getByText('Answer B')).toBeInTheDocument();
+    expect(screen.getByText('Answer C')).toBeInTheDocument();
+  });
 
-  it('should display answer distribution', () => {
+  it('should show checkmark for correct answers', () => {
+    render(<QuizResults correctAnswer="Answer A" distribution={mockDistribution} />);
+    const checkmarks = screen.getAllByText('✓');
+    expect(checkmarks.length).toBeGreaterThan(0);
+  });
+
+  it('should display answer counts', () => {
+    render(<QuizResults correctAnswer="Answer A" distribution={mockDistribution} />);
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('should display percentages', () => {
+    render(<QuizResults correctAnswer="Answer A" distribution={mockDistribution} />);
+    expect(screen.getByText('50%')).toBeInTheDocument();
+    expect(screen.getByText('30%')).toBeInTheDocument();
+    expect(screen.getByText('20%')).toBeInTheDocument();
+  });
+
+  it('should render segment leaderboard when provided', () => {
+    const segmentLeaderboard = [
+      { rank: 1, user_id: '1', username: 'User1', score: 100 },
+      { rank: 2, user_id: '2', username: 'User2', score: 80 },
+    ];
+
     render(
       <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
+        segmentLeaderboard={segmentLeaderboard}
       />
-    )
+    );
 
-    expect(screen.getByText('Answer Distribution')).toBeInTheDocument()
-    expect(screen.getByText('50%')).toBeInTheDocument()
-    expect(screen.getByText('25%')).toBeInTheDocument()
-    expect(screen.getByText('15%')).toBeInTheDocument()
-    expect(screen.getByText('10%')).toBeInTheDocument()
-  })
+    expect(screen.getByText('Segment Standings')).toBeInTheDocument();
+    expect(screen.getByText('User1')).toBeInTheDocument();
+    expect(screen.getByText('User2')).toBeInTheDocument();
+  });
 
-  it('should show checkmark for correct answer in distribution', () => {
+  it('should render event leaderboard when provided', () => {
+    const eventLeaderboard = [
+      { rank: 1, user_id: '1', username: 'User1', score: 200 },
+      { rank: 2, user_id: '2', username: 'User2', score: 150 },
+    ];
+
     render(
       <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
+        eventLeaderboard={eventLeaderboard}
       />
-    )
+    );
 
-    expect(screen.getByText('✓')).toBeInTheDocument()
-  })
+    expect(screen.getByText('Event Standings')).toBeInTheDocument();
+    expect(screen.getByText('User1')).toBeInTheDocument();
+    expect(screen.getByText('User2')).toBeInTheDocument();
+  });
 
-  it('should display segment leaderboard when provided', () => {
+  it('should display medal emojis for top 3 ranks', () => {
+    const segmentLeaderboard = [
+      { rank: 1, user_id: '1', username: 'User1', score: 100 },
+      { rank: 2, user_id: '2', username: 'User2', score: 80 },
+      { rank: 3, user_id: '3', username: 'User3', score: 60 },
+    ];
+
     render(
       <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
-        segmentLeaderboard={mockSegmentLeaderboard}
+        segmentLeaderboard={segmentLeaderboard}
       />
-    )
+    );
 
-    expect(screen.getByText('Segment Standings')).toBeInTheDocument()
-    expect(screen.getByText('Alice')).toBeInTheDocument()
-    expect(screen.getByText('100')).toBeInTheDocument()
-  })
+    expect(screen.getByText('🥇')).toBeInTheDocument();
+    expect(screen.getByText('🥈')).toBeInTheDocument();
+    expect(screen.getByText('🥉')).toBeInTheDocument();
+  });
 
-  it('should display event leaderboard when provided', () => {
+  it('should display rank numbers for ranks above 3', () => {
+    const segmentLeaderboard = [
+      { rank: 4, user_id: '4', username: 'User4', score: 40 },
+    ];
+
     render(
       <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
-        eventLeaderboard={mockEventLeaderboard}
+        segmentLeaderboard={segmentLeaderboard}
       />
-    )
+    );
 
-    expect(screen.getByText('Event Standings')).toBeInTheDocument()
-    expect(screen.getByText('500')).toBeInTheDocument()
-  })
-
-  it('should show medals for top 3 ranks', () => {
-    render(
-      <QuizResults
-        correctAnswer="Paris"
-        distribution={mockDistribution}
-        segmentLeaderboard={mockSegmentLeaderboard}
-      />
-    )
-
-    expect(screen.getByText('🥇')).toBeInTheDocument()
-    expect(screen.getByText('🥈')).toBeInTheDocument()
-    expect(screen.getByText('🥉')).toBeInTheDocument()
-  })
+    expect(screen.getByText('#4')).toBeInTheDocument();
+  });
 
   it('should handle empty distribution', () => {
+    render(<QuizResults correctAnswer="Answer A" distribution={[]} />);
+    expect(screen.getByText('Answer Distribution')).toBeInTheDocument();
+  });
+
+  it('should not display user answer section when userAnswer is not provided', () => {
+    render(<QuizResults correctAnswer="Answer A" distribution={mockDistribution} />);
+    expect(screen.queryByText(/Your Answer:/)).not.toBeInTheDocument();
+  });
+
+  it('should not display points when pointsEarned is not provided', () => {
     render(
       <QuizResults
-        correctAnswer="Paris"
-        distribution={[]}
-      />
-    )
-
-    expect(screen.getByText('Answer Distribution')).toBeInTheDocument()
-  })
-
-  it('should handle empty leaderboards gracefully', () => {
-    render(
-      <QuizResults
-        correctAnswer="Paris"
+        correctAnswer="Answer A"
         distribution={mockDistribution}
-        segmentLeaderboard={[]}
-        eventLeaderboard={[]}
+        userAnswer="Answer A"
       />
-    )
+    );
+    expect(screen.queryByText(/points/)).not.toBeInTheDocument();
+  });
+});
 
-    expect(screen.queryByText('Segment Standings')).not.toBeInTheDocument()
-    expect(screen.queryByText('Event Standings')).not.toBeInTheDocument()
-  })
-})

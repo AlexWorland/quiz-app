@@ -1,53 +1,195 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from '@playwright/test';
+import { loginUser, registerUser, clearAuth } from './fixtures/auth';
+import { isBackendAvailable, createEvent, deleteEvent, createSegment } from './fixtures/api';
 
 test.describe('Quiz Participation', () => {
   test.beforeEach(async ({ page }) => {
-    // Check if backend is reachable
-    try {
-      const response = await page.request.get('http://localhost:8080/api/health')
-      if (!response.ok()) {
-        test.skip(true, 'Backend not available')
-      }
-    } catch {
-      test.skip(true, 'Backend not available')
-    }
-  })
+    await page.goto('/login', { waitUntil: 'domcontentloaded' });
+    await clearAuth(page);
+  });
 
-  test('should allow joining event by code', async ({ page }) => {
-    await page.goto('/')
+  test.describe('Participant Flow', () => {
+    test('should display quiz interface when joining event', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
 
-    // Look for join event input
-    const joinInput = page.getByPlaceholder(/code|join/i)
-    if (await joinInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await joinInput.fill('TEST123')
+      // Create event and segment as host
+      await registerUser(page, {
+        username: `host_${Date.now()}`,
+        password: 'testpass123',
+        avatar_type: 'emoji',
+      });
 
-      const joinButton = page.getByRole('button', { name: /join/i })
-      if (await joinButton.isVisible()) {
-        await joinButton.click()
-      }
-    }
-  })
+      const event = await createEvent(page, {
+        title: `Quiz Event ${Date.now()}`,
+      });
 
-  test('should display quiz interface elements', async ({ page }) => {
-    // This test verifies the quiz UI components exist when in a quiz
-    await page.goto('/')
+      const segment = await createSegment(page, event.id, {
+        presenter_name: 'Test Presenter',
+        title: 'Test Segment',
+      });
 
-    // Check that core UI elements can render without errors
-    const body = page.locator('body')
-    await expect(body).toBeVisible()
-  })
-})
+      // Join as participant
+      await clearAuth(page);
+      await registerUser(page, {
+        username: `participant_${Date.now()}`,
+        password: 'testpass123',
+        avatar_type: 'emoji',
+      });
 
-test.describe('Quiz Components Visual', () => {
-  test('should render answer selection correctly', async ({ page }) => {
-    // Navigate to a page that shows quiz components
-    await page.goto('/')
+      await page.goto(`/events/${event.id}/segments/${segment.id}`, { waitUntil: 'domcontentloaded' });
+      
+      // Should show quiz interface
+      await expect(
+        page.getByText(/Waiting|Quiz|Segment|Participant/i)
+      ).toBeVisible({ timeout: 10000 });
+      
+      // Cleanup
+      await deleteEvent(page, event.id).catch(() => {});
+    });
 
-    // Verify no JavaScript errors
-    const errors: string[] = []
-    page.on('pageerror', (err) => errors.push(err.message))
+    test('should show waiting state before quiz starts', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
 
-    await page.waitForTimeout(1000)
-    expect(errors).toHaveLength(0)
-  })
-})
+      // Create event and segment
+      await registerUser(page, {
+        username: `host_${Date.now()}`,
+        password: 'testpass123',
+        avatar_type: 'emoji',
+      });
+
+      const event = await createEvent(page, {
+        title: `Quiz Event ${Date.now()}`,
+      });
+
+      const segment = await createSegment(page, event.id, {
+        presenter_name: 'Test Presenter',
+      });
+
+      // Join as participant
+      await clearAuth(page);
+      await registerUser(page, {
+        username: `participant_${Date.now()}`,
+        password: 'testpass123',
+        avatar_type: 'emoji',
+      });
+
+      await page.goto(`/events/${event.id}/segments/${segment.id}`, { waitUntil: 'domcontentloaded' });
+      
+      // Should show waiting or not started state
+      await expect(
+        page.getByText(/Waiting|Not Started|Waiting for quiz/i)
+      ).toBeVisible({ timeout: 10000 });
+      
+      // Cleanup
+      await deleteEvent(page, event.id).catch(() => {});
+    });
+  });
+
+  test.describe('Presenter Flow', () => {
+    test('should display presenter controls when user is presenter', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
+
+      // Create event and segment as presenter
+      await registerUser(page, {
+        username: `presenter_${Date.now()}`,
+        password: 'testpass123',
+        avatar_type: 'emoji',
+      });
+
+      const event = await createEvent(page, {
+        title: `Quiz Event ${Date.now()}`,
+      });
+
+      const segment = await createSegment(page, event.id, {
+        presenter_name: 'Test Presenter',
+      });
+
+      await page.goto(`/events/${event.id}/segments/${segment.id}`, { waitUntil: 'domcontentloaded' });
+      
+      // Should show presenter controls
+      await expect(
+        page.getByText(/Start|Control|Presenter|Host/i)
+      ).toBeVisible({ timeout: 10000 });
+      
+      // Cleanup
+      await deleteEvent(page, event.id).catch(() => {});
+    });
+
+    test('should show recording controls for presenter', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
+
+      await registerUser(page, {
+        username: `presenter_${Date.now()}`,
+        password: 'testpass123',
+        avatar_type: 'emoji',
+      });
+
+      const event = await createEvent(page, {
+        title: `Quiz Event ${Date.now()}`,
+        mode: 'listen_only',
+      });
+
+      const segment = await createSegment(page, event.id, {
+        presenter_name: 'Test Presenter',
+      });
+
+      await page.goto(`/events/${event.id}/segments/${segment.id}`, { waitUntil: 'domcontentloaded' });
+      
+      // Should show recording controls in listen_only mode
+      await expect(
+        page.getByText(/Record|Start Recording|Recording/i)
+      ).toBeVisible({ timeout: 10000 });
+      
+      // Cleanup
+      await deleteEvent(page, event.id).catch(() => {});
+    });
+  });
+
+  test.describe('Answer Selection', () => {
+    test('should display answer options when question is shown', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
+
+      // This test would require a quiz to be started with questions
+      // For now, we'll skip detailed quiz flow tests as they require WebSocket setup
+      test.skip(true, 'Requires active quiz session with WebSocket');
+    });
+
+    test('should allow selecting an answer', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
+      test.skip(true, 'Requires active quiz session with WebSocket');
+    });
+
+    test('should show correct answer after reveal', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
+      test.skip(true, 'Requires active quiz session with WebSocket');
+    });
+  });
+
+  test.describe('Leaderboard', () => {
+    test('should display leaderboard after question', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
+      test.skip(true, 'Requires active quiz session with WebSocket');
+    });
+
+    test('should show segment leaderboard', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
+      test.skip(true, 'Requires active quiz session with WebSocket');
+    });
+
+    test('should show master leaderboard', async ({ page }) => {
+      const backendAvailable = await isBackendAvailable(page);
+      test.skip(!backendAvailable, 'Backend not available - skipping test');
+      test.skip(true, 'Requires active quiz session with WebSocket');
+    });
+  });
+});
+

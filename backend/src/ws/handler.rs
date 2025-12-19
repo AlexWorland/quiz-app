@@ -5,6 +5,7 @@ use uuid::Uuid;
 use chrono::Utc;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use sqlx::Row;
 
 use crate::AppState;
 use crate::ws::messages::{GameMessage, ServerMessage, ParticipantMessage};
@@ -29,13 +30,13 @@ macro_rules! unwrap_or_log {
 }
 
 /// Safely serialize a value to JSON string, returning error message on failure
-fn serialize_to_json<T: serde::Serialize>(value: &T) -> Result<String, String> {
+fn serialize_to_json<T: serde::Serialize>(value: &T) -> std::result::Result<String, String> {
     serde_json::to_string(value)
         .map_err(|e| format!("JSON serialization failed: {}", e))
 }
 
 /// Safely serialize a value to JSON Value, returning error message on failure
-fn serialize_to_json_value<T: serde::Serialize>(value: &T) -> Result<serde_json::Value, String> {
+fn serialize_to_json_value<T: serde::Serialize>(value: &T) -> std::result::Result<serde_json::Value, String> {
     serde_json::to_value(value)
         .map_err(|e| format!("JSON serialization failed: {}", e))
 }
@@ -66,7 +67,7 @@ async fn send_ws_message<T: serde::Serialize>(
 
 /// Safely broadcast a message to all event participants, logging errors
 async fn broadcast_ws_message<T: serde::Serialize>(
-    hub: &crate::ws::hub::Hub,
+    hub: &std::sync::Arc<crate::ws::hub::Hub>,
     event_id: uuid::Uuid,
     message: T,
 ) {
@@ -78,6 +79,140 @@ async fn broadcast_ws_message<T: serde::Serialize>(
             tracing::error!("Failed to serialize broadcast message: {}", e);
         }
     }
+}
+
+/// Check if user is authorized to control the current segment
+/// Returns true if user is event host OR segment presenter
+async fn is_segment_controller(
+    db: &sqlx::PgPool,
+    event_id: Uuid,
+    segment_id: Uuid,
+    user_id: Uuid,
+) -> Result<bool> {
+    let result = sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM events e
+            JOIN segments s ON s.event_id = e.id
+            WHERE e.id = $1
+              AND s.id = $2
+              AND (e.host_id = $3 OR s.presenter_user_id = $3)
+        )
+        "#
+    )
+    .bind(event_id)
+    .bind(segment_id)
+    .bind(user_id)
+    .fetch_one(db)
+    .await?;
+
+    Ok(result)
+}
+
+/// Get all segment winners for an event
+async fn get_all_segment_winners(
+    db: &sqlx::PgPool,
+    event_id: Uuid,
+) -> Result<Vec<crate::ws::messages::SegmentWinner>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            s.id as segment_id,
+            COALESCE(s.title, s.presenter_name) as segment_title,
+            u.username as winner_name,
+            ss.score as winner_score
+        FROM segments s
+        LEFT JOIN LATERAL (
+            SELECT user_id, score
+            FROM segment_scores
+            WHERE segment_id = s.id
+            ORDER BY score DESC
+            LIMIT 1
+        ) ss ON true
+        LEFT JOIN users u ON ss.user_id = u.id
+        WHERE s.event_id = $1 AND s.status = 'completed'
+        ORDER BY s.order_index
+        "#
+    )
+    .bind(event_id)
+    .fetch_all(db)
+    .await?;
+
+    let mut winners = Vec::new();
+    for row in rows {
+        winners.push(crate::ws::messages::SegmentWinner {
+            segment_id: row.try_get("segment_id")?,
+            segment_title: row.try_get::<Option<String>, _>("segment_title")?
+                .unwrap_or_else(|| "Untitled Segment".to_string()),
+            winner_name: row.try_get::<Option<String>, _>("winner_name")?
+                .unwrap_or_else(|| "No winner".to_string()),
+            winner_score: row.try_get::<Option<i32>, _>("winner_score")?.unwrap_or(0),
+        });
+    }
+
+    Ok(winners)
+}
+
+/// Trigger event completion when all segments are done
+async fn trigger_event_complete(
+    state: &AppState,
+    event_id: Uuid,
+) -> Result<()> {
+    // Update event status
+    sqlx::query("UPDATE events SET status = 'finished' WHERE id = $1")
+        .bind(event_id)
+        .execute(&state.db)
+        .await?;
+
+    // Calculate final leaderboard
+    let final_leaderboard_result = sqlx::query_as::<_, crate::models::question::LeaderboardEntry>(
+        r#"
+        SELECT 
+            ROW_NUMBER() OVER (ORDER BY total_score DESC) as rank,
+            user_id,
+            username,
+            avatar_url,
+            total_score as score
+        FROM (
+            SELECT 
+                ep.user_id,
+                u.username,
+                u.avatar_url,
+                ep.total_score
+            FROM event_participants ep
+            JOIN users u ON ep.user_id = u.id
+            WHERE ep.event_id = $1
+            ORDER BY ep.total_score DESC
+        ) ranked
+        "#
+    )
+    .bind(event_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let final_leaderboard: Vec<crate::ws::messages::LeaderboardEntry> = final_leaderboard_result
+        .into_iter()
+        .map(|e| crate::ws::messages::LeaderboardEntry {
+            rank: e.rank as i32,
+            user_id: e.user_id,
+            username: e.username,
+            avatar_url: e.avatar_url,
+            score: e.score,
+        })
+        .collect();
+
+    // Get segment winners
+    let segment_winners = get_all_segment_winners(&state.db, event_id).await?;
+
+    // Broadcast event complete
+    broadcast_ws_message(&state.hub, event_id, crate::ws::messages::ServerMessage::EventComplete {
+        event_id,
+        final_leaderboard: final_leaderboard.clone(),
+        winner: final_leaderboard.first().cloned(),
+        segment_winners,
+    }).await;
+
+    Ok(())
 }
 
 /// Get or generate fake answers for a question
@@ -459,10 +594,31 @@ pub async fn handle_ws_connection(
                                 };
                                 state.hub.add_participant(event_id, participant.clone()).await;
 
-                                // Get current participants
+                                // Get current participants and check if user is presenter
                                 let game_state = state.hub.get_game_state(event_id).await;
-                                let participants: Vec<ParticipantMessage> = if let Some(state) = game_state {
-                                    state.participants.values().map(|p| ParticipantMessage {
+                                let mut is_presenter = false;
+                                if let Some(ref gs) = game_state {
+                                    if let Some(segment_id) = gs.current_segment_id {
+                                        let presenter_check = sqlx::query_scalar::<_, Option<Uuid>>(
+                                            "SELECT presenter_user_id FROM segments WHERE id = $1"
+                                        )
+                                        .bind(segment_id)
+                                        .fetch_one(&state.db)
+                                        .await;
+
+                                        if let Ok(Some(presenter_id)) = presenter_check {
+                                            is_presenter = presenter_id == id;
+                                        }
+                                    }
+                                }
+
+                                // Increment participant count if not presenter
+                                if !is_presenter {
+                                    state.hub.increment_participant_count(event_id).await;
+                                }
+
+                                let participants: Vec<ParticipantMessage> = if let Some(gs) = game_state {
+                                    gs.participants.values().map(|p| ParticipantMessage {
                                         id: p.user_id,
                                         username: p.username.clone(),
                                         avatar_url: p.avatar_url.clone(),
@@ -655,9 +811,44 @@ pub async fn handle_ws_connection(
                                 // Record answer in hub
                                 state.hub.record_answer(event_id, uid, selected_answer.clone()).await;
 
-                                // Broadcast answer received (host only sees this)
-                                let answer_received = ServerMessage::AnswerReceived { user_id: uid };
-                                broadcast_ws_message(&state.hub, event_id, answer_received).await;
+                                // Check if all participants have answered
+                                let game_state_after = state.hub.get_game_state(event_id).await;
+                                if let Some(state_after) = game_state_after {
+                                    let answers_count = state_after.answers_received.len();
+                                    let total_participants = state_after.total_participants;
+                                    
+                                    // Broadcast answer received
+                                    let answer_received = ServerMessage::AnswerReceived { user_id: uid };
+                                    broadcast_ws_message(&state.hub, event_id, answer_received).await;
+
+                                    // If all participants answered, notify presenter
+                                    if answers_count >= total_participants && total_participants > 0 {
+                                        // Get segment presenter ID
+                                        if let Some(seg_id) = state_after.current_segment_id {
+                                            let presenter_id_result = sqlx::query_scalar::<_, Option<Uuid>>(
+                                                "SELECT presenter_user_id FROM segments WHERE id = $1"
+                                            )
+                                            .bind(seg_id)
+                                            .fetch_one(&state.db)
+                                            .await;
+
+                                            if let Ok(Some(presenter_id)) = presenter_id_result {
+                                                // Send AllAnswered message directly to presenter
+                                                let all_answered = ServerMessage::AllAnswered {
+                                                    answer_count: answers_count,
+                                                    total_participants,
+                                                };
+                                                // We need to send this to a specific user, not broadcast
+                                                // For now, broadcast it - the presenter can filter
+                                                broadcast_ws_message(&state.hub, event_id, all_answered).await;
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Broadcast answer received (fallback)
+                                    let answer_received = ServerMessage::AnswerReceived { user_id: uid };
+                                    broadcast_ws_message(&state.hub, event_id, answer_received).await;
+                                }
                             }
                             Ok(None) => {
                                 let error_msg = ServerMessage::Error {
@@ -676,34 +867,8 @@ pub async fn handle_ws_connection(
                         }
                     }
                     GameMessage::StartGame => {
-                        // Only host can start game - check if user is event host
+                        // Host OR segment presenter can start game
                         if let Some(uid) = user_id {
-                            let is_host = match sqlx::query_scalar::<_, bool>(
-                                "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
-                            )
-                            .bind(event_id)
-                            .bind(uid)
-                            .fetch_one(&state.db)
-                            .await {
-                                Ok(result) => result,
-                                Err(e) => {
-                                    tracing::error!("Database error checking host status for start game: {}", e);
-                                    let error_msg = ServerMessage::Error {
-                                        message: "Failed to verify permissions".to_string(),
-                                    };
-                                    send_ws_message(&tx, error_msg).await;
-                                    continue;
-                                }
-                            };
-
-                            if !is_host {
-                                let error_msg = ServerMessage::Error {
-                                    message: "Only host can start game".to_string(),
-                                };
-                                send_ws_message(&tx, error_msg).await;
-                                continue;
-                            }
-
                             // Get first segment for this event
                             let segment_result = sqlx::query_as::<_, (Uuid,)>(
                                 "SELECT id FROM segments WHERE event_id = $1 ORDER BY order_index LIMIT 1"
@@ -712,111 +877,17 @@ pub async fn handle_ws_connection(
                             .fetch_optional(&state.db)
                             .await;
 
-                            if let Ok(Some((segment_id,))) = segment_result {
-                                // Get first question for this segment
-                                let question_result = sqlx::query_as::<_, (Uuid, String, String, i32)>(
-                                    "SELECT id, question_text, correct_answer, order_index FROM questions 
-                                     WHERE segment_id = $1 AND order_index = 0 
-                                     ORDER BY order_index LIMIT 1"
-                                )
-                                .bind(segment_id)
-                                .fetch_optional(&state.db)
-                                .await;
-
-                                match question_result {
-                                    Ok(Some((qid, qtext, correct, _))) => {
-                                        // Get time limit from event
-                                        let time_limit = match sqlx::query_scalar::<_, i32>(
-                                            "SELECT time_per_question FROM events WHERE id = $1"
-                                        )
-                                        .bind(event_id)
-                                        .fetch_one(&state.db)
-                                        .await {
-                                            Ok(limit) => {
-                                                if limit <= 0 {
-                                                    tracing::warn!("Invalid time_per_question {} for event {}, using default 30", limit, event_id);
-                                                    30
-                                                } else {
-                                                    limit
-                                                }
-                                            },
-                                            Err(e) => {
-                                                tracing::warn!("Database error fetching time_per_question for event {}: {}, using default 30", event_id, e);
-                                                30
-                                            }
-                                        };
-
-                                        // Get or generate answers
-                                        let all_answers = get_or_generate_answers(
-                                            &state,
-                                            qid,
-                                            &qtext,
-                                            &correct,
-                                            event_id,
-                                        ).await.unwrap_or_else(|e| {
-                                            tracing::error!("Failed to get/generate answers: {}", e);
-                                            vec![correct.clone()]
-                                        });
-
-                                        // Update game state
-                                        state.hub.update_game_state(event_id, |game_state| {
-                                            game_state.current_segment_id = Some(segment_id);
-                                            game_state.current_question_id = Some(qid);
-                                            game_state.current_question_index = 0;
-                                            game_state.question_started_at = Some(Utc::now());
-                                            game_state.time_limit_seconds = time_limit;
-                                        }).await;
-                                        state.hub.clear_answers(event_id).await;
-
-                                        // Broadcast game started and first question
-                                        let started = ServerMessage::GameStarted;
-                                        broadcast_ws_message(&state.hub, event_id, started).await;
-
-                                        let question_msg = ServerMessage::Question {
-                                            question_id: qid,
-                                            text: qtext,
-                                            answers: all_answers,
-                                            time_limit,
-                                        };
-                                        broadcast_ws_message(&state.hub, event_id, question_msg).await;
-                                    }
-                                    Ok(None) => {
-                                        let error_msg = ServerMessage::Error {
-                                            message: "No questions found for this event".to_string(),
-                                        };
-                                        send_ws_message(&tx, error_msg).await;
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("Database error fetching questions for segment {}: {}", segment_id, e);
-                                        let error_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
-                                        let error_msg = ServerMessage::Error {
-                                            message: format!("Failed to start game. Please try again. (Error ID: {})", error_id),
-                                        };
-                                        send_ws_message(&tx, error_msg).await;
-                                    }
+                            let segment_id = match segment_result {
+                                Ok(Some((seg_id,))) => seg_id,
+                                Ok(None) => {
+                                    let error_msg = ServerMessage::Error {
+                                        message: "No segments found for this event".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
                                 }
-                            } else {
-                                tracing::error!("No segments found for event {}", event_id);
-                                let error_msg = ServerMessage::Error {
-                                    message: "No segments found for this event".to_string(),
-                                };
-                                send_ws_message(&tx, error_msg).await;
-                            }
-                        }
-                    }
-                    GameMessage::NextQuestion => {
-                        // Only host can advance questions
-                        if let Some(uid) = user_id {
-                            let is_host = match sqlx::query_scalar::<_, bool>(
-                                "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
-                            )
-                            .bind(event_id)
-                            .bind(uid)
-                            .fetch_one(&state.db)
-                            .await {
-                                Ok(result) => result,
                                 Err(e) => {
-                                    tracing::error!("Database error checking host status for advance question: {}", e);
+                                    tracing::error!("Database error fetching segment for start game: {}", e);
                                     let error_msg = ServerMessage::Error {
                                         message: "Failed to verify permissions".to_string(),
                                     };
@@ -825,18 +896,163 @@ pub async fn handle_ws_connection(
                                 }
                             };
 
-                            if !is_host {
-                                let error_msg = ServerMessage::Error {
-                                    message: "Only host can advance questions".to_string(),
-                                };
-                                send_ws_message(&tx, error_msg).await;
-                                continue;
+                            // Check if user is host or segment presenter
+                            match is_segment_controller(&state.db, event_id, segment_id, uid).await {
+                                Ok(true) => {
+                                    // User has permission, continue
+                                }
+                                Ok(false) => {
+                                    let error_msg = ServerMessage::Error {
+                                        message: "Only host or segment presenter can start game".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
+                                Err(e) => {
+                                    tracing::error!("Database error checking controller status for start game: {}", e);
+                                    let error_msg = ServerMessage::Error {
+                                        message: "Failed to verify permissions".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
                             }
 
+                            // Get first question for this segment
+                            let question_result = sqlx::query_as::<_, (Uuid, String, String, i32)>(
+                                "SELECT id, question_text, correct_answer, order_index FROM questions 
+                                 WHERE segment_id = $1 AND order_index = 0 
+                                 ORDER BY order_index LIMIT 1"
+                            )
+                            .bind(segment_id)
+                            .fetch_optional(&state.db)
+                            .await;
+
+                            match question_result {
+                                Ok(Some((qid, qtext, correct, _))) => {
+                                    // Get total questions for this segment
+                                    let total_questions = sqlx::query_scalar::<_, i64>(
+                                        "SELECT COUNT(*) FROM questions WHERE segment_id = $1"
+                                    )
+                                    .bind(segment_id)
+                                    .fetch_one(&state.db)
+                                    .await
+                                    .unwrap_or(0) as i32;
+
+                                    // Get time limit from event
+                                    let time_limit = match sqlx::query_scalar::<_, i32>(
+                                        "SELECT time_per_question FROM events WHERE id = $1"
+                                    )
+                                    .bind(event_id)
+                                    .fetch_one(&state.db)
+                                    .await {
+                                        Ok(limit) => {
+                                            if limit <= 0 {
+                                                tracing::warn!("Invalid time_per_question {} for event {}, using default 30", limit, event_id);
+                                                30
+                                            } else {
+                                                limit
+                                            }
+                                        },
+                                        Err(e) => {
+                                            tracing::warn!("Database error fetching time_per_question for event {}: {}, using default 30", event_id, e);
+                                            30
+                                        }
+                                    };
+
+                                    // Get or generate answers
+                                    let all_answers = get_or_generate_answers(
+                                        &state,
+                                        qid,
+                                        &qtext,
+                                        &correct,
+                                        event_id,
+                                    ).await.unwrap_or_else(|e| {
+                                        tracing::error!("Failed to get/generate answers: {}", e);
+                                        vec![correct.clone()]
+                                    });
+
+                                    // Update game state
+                                    state.hub.update_game_state(event_id, |game_state| {
+                                        game_state.current_segment_id = Some(segment_id);
+                                        game_state.current_question_id = Some(qid);
+                                        game_state.current_question_index = 0;
+                                        game_state.question_started_at = Some(Utc::now());
+                                        game_state.time_limit_seconds = time_limit;
+                                    }).await;
+                                    state.hub.clear_answers(event_id).await;
+
+                                    // Set phase to ShowingQuestion
+                                    state.hub.set_quiz_phase(event_id, crate::ws::hub::QuizPhase::ShowingQuestion).await;
+
+                                    // Broadcast game started
+                                    let started = ServerMessage::GameStarted;
+                                    broadcast_ws_message(&state.hub, event_id, started).await;
+
+                                    // Broadcast phase change
+                                    let phase_change = ServerMessage::PhaseChanged {
+                                        phase: crate::ws::hub::QuizPhase::ShowingQuestion,
+                                        question_index: 0,
+                                        total_questions,
+                                    };
+                                    broadcast_ws_message(&state.hub, event_id, phase_change).await;
+
+                                    // Broadcast first question
+                                    let question_msg = ServerMessage::Question {
+                                        question_id: qid,
+                                        question_number: 1, // 1-indexed for display
+                                        total_questions,
+                                        text: qtext,
+                                        answers: all_answers,
+                                        time_limit,
+                                    };
+                                    broadcast_ws_message(&state.hub, event_id, question_msg).await;
+                                }
+                                Ok(None) => {
+                                    let error_msg = ServerMessage::Error {
+                                        message: "No questions found for this event".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                }
+                                Err(e) => {
+                                    tracing::error!("Database error fetching questions for segment {}: {}", segment_id, e);
+                                    let error_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
+                                    let error_msg = ServerMessage::Error {
+                                        message: format!("Failed to start game. Please try again. (Error ID: {})", error_id),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                }
+                            }
+                        }
+                    }
+                    GameMessage::NextQuestion => {
+                        // Host OR segment presenter can advance questions
+                        if let Some(uid) = user_id {
                             // Get next question for current segment
                             let game_state = state.hub.get_game_state(event_id).await;
                             if let Some(state_ref) = game_state {
                                 if let Some(segment_id) = state_ref.current_segment_id {
+                                    // Check if user is host or segment presenter
+                                    match is_segment_controller(&state.db, event_id, segment_id, uid).await {
+                                        Ok(true) => {
+                                            // User has permission, continue
+                                        }
+                                        Ok(false) => {
+                                            let error_msg = ServerMessage::Error {
+                                                message: "Only host or segment presenter can advance questions".to_string(),
+                                            };
+                                            send_ws_message(&tx, error_msg).await;
+                                            continue;
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Database error checking controller status for advance question: {}", e);
+                                            let error_msg = ServerMessage::Error {
+                                                message: "Failed to verify permissions".to_string(),
+                                            };
+                                            send_ws_message(&tx, error_msg).await;
+                                            continue;
+                                        }
+                                    }
                                     let next_index = state_ref.current_question_index + 1;
                                     
                                     let question_result = sqlx::query_as::<_, (Uuid, String, String, i32)>(
@@ -851,6 +1067,18 @@ pub async fn handle_ws_connection(
 
                                     match question_result {
                                         Ok(Some((qid, qtext, correct, _))) => {
+                                            // Get total questions for this segment
+                                            let total_questions = sqlx::query_scalar::<_, i64>(
+                                                "SELECT COUNT(*) FROM questions WHERE segment_id = $1"
+                                            )
+                                            .bind(segment_id)
+                                            .fetch_one(&state.db)
+                                            .await
+                                            .unwrap_or(0) as i32;
+
+                                            // Set phase to ShowingQuestion
+                                            state.hub.set_quiz_phase(event_id, crate::ws::hub::QuizPhase::ShowingQuestion).await;
+
                                             // Get or generate fake answers
                                             let all_answers = get_or_generate_answers(
                                                 &state,
@@ -894,9 +1122,19 @@ pub async fn handle_ws_connection(
                                             }).await;
                                             state.hub.clear_answers(event_id).await;
 
+                                            // Broadcast phase change
+                                            let phase_change = ServerMessage::PhaseChanged {
+                                                phase: crate::ws::hub::QuizPhase::ShowingQuestion,
+                                                question_index: next_index,
+                                                total_questions,
+                                            };
+                                            broadcast_ws_message(&state.hub, event_id, phase_change).await;
+
                                             // Broadcast question
                                             let question_msg = ServerMessage::Question {
                                                 question_id: qid,
+                                                question_number: next_index + 1, // 1-indexed for display
+                                                total_questions,
                                                 text: qtext,
                                                 answers: all_answers,
                                                 time_limit,
@@ -917,38 +1155,83 @@ pub async fn handle_ws_connection(
                         }
                     }
                     GameMessage::RevealAnswer => {
-                        // Only host can reveal answers
+                        // Host OR segment presenter can reveal answers
                         if let Some(uid) = user_id {
-                            let is_host = match sqlx::query_scalar::<_, bool>(
-                                "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
-                            )
-                            .bind(event_id)
-                            .bind(uid)
-                            .fetch_one(&state.db)
-                            .await {
-                                Ok(result) => result,
-                                Err(e) => {
-                                    tracing::error!("Database error checking host status for reveal answers: {}", e);
-                                    let error_msg = ServerMessage::Error {
-                                        message: "Failed to verify permissions".to_string(),
-                                    };
-                                    send_ws_message(&tx, error_msg).await;
-                                    continue;
-                                }
-                            };
-
-                            if !is_host {
-                                let error_msg = ServerMessage::Error {
-                                    message: "Only host can reveal answers".to_string(),
-                                };
-                                send_ws_message(&tx, error_msg).await;
-                                continue;
-                            }
-
                             // Get current question and calculate distribution
                             let game_state = state.hub.get_game_state(event_id).await;
                             if let Some(state_ref) = game_state {
                                 if let Some(question_id) = state_ref.current_question_id {
+                                    // Get question info first to get segment_id for authorization check
+                                    let question_info = sqlx::query_as::<_, (String, i32, Option<Uuid>)>(
+                                        "SELECT question_text, order_index, segment_id FROM questions WHERE id = $1"
+                                    )
+                                    .bind(question_id)
+                                    .fetch_one(&state.db)
+                                    .await;
+
+                                    let (question_text, question_number, segment_id_opt) = match question_info {
+                                        Ok(info) => info,
+                                        Err(e) => {
+                                            tracing::error!("Failed to get question info: {}", e);
+                                            let error_msg = ServerMessage::Error {
+                                                message: "Failed to get question information".to_string(),
+                                            };
+                                            send_ws_message(&tx, error_msg).await;
+                                            continue;
+                                        }
+                                    };
+
+                                    // Check authorization if we have a segment_id
+                                    if let Some(segment_id) = segment_id_opt {
+                                        match is_segment_controller(&state.db, event_id, segment_id, uid).await {
+                                            Ok(true) => {
+                                                // User has permission, continue
+                                            }
+                                            Ok(false) => {
+                                                let error_msg = ServerMessage::Error {
+                                                    message: "Only host or segment presenter can reveal answers".to_string(),
+                                                };
+                                                send_ws_message(&tx, error_msg).await;
+                                                continue;
+                                            }
+                                            Err(e) => {
+                                                tracing::error!("Database error checking controller status for reveal answer: {}", e);
+                                                let error_msg = ServerMessage::Error {
+                                                    message: "Failed to verify permissions".to_string(),
+                                                };
+                                                send_ws_message(&tx, error_msg).await;
+                                                continue;
+                                            }
+                                        }
+                                    } else {
+                                        // No segment_id - fall back to host-only check
+                                        let is_host = match sqlx::query_scalar::<_, bool>(
+                                            "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
+                                        )
+                                        .bind(event_id)
+                                        .bind(uid)
+                                        .fetch_one(&state.db)
+                                        .await {
+                                            Ok(result) => result,
+                                            Err(e) => {
+                                                tracing::error!("Database error checking host status for reveal answers: {}", e);
+                                                let error_msg = ServerMessage::Error {
+                                                    message: "Failed to verify permissions".to_string(),
+                                                };
+                                                send_ws_message(&tx, error_msg).await;
+                                                continue;
+                                            }
+                                        };
+
+                                        if !is_host {
+                                            let error_msg = ServerMessage::Error {
+                                                message: "Only host can reveal answers".to_string(),
+                                            };
+                                            send_ws_message(&tx, error_msg).await;
+                                            continue;
+                                        }
+                                    }
+
                                     // Get correct answer
                                     let correct_result = sqlx::query_scalar::<_, String>(
                                         "SELECT correct_answer FROM questions WHERE id = $1"
@@ -958,6 +1241,31 @@ pub async fn handle_ws_connection(
                                     .await;
 
                                     if let Ok(correct_answer) = correct_result {
+
+                                        // Get total questions for segment
+                                        let total_questions = if let Some(seg_id) = segment_id_opt {
+                                            sqlx::query_scalar::<_, i64>(
+                                                "SELECT COUNT(*) FROM questions WHERE segment_id = $1"
+                                            )
+                                            .bind(seg_id)
+                                            .fetch_one(&state.db)
+                                            .await
+                                            .unwrap_or(0) as i32
+                                        } else {
+                                            0
+                                        };
+
+                                        // Set phase to RevealingAnswer
+                                        state.hub.set_quiz_phase(event_id, crate::ws::hub::QuizPhase::RevealingAnswer).await;
+
+                                        // Broadcast phase change
+                                        let phase_change = ServerMessage::PhaseChanged {
+                                            phase: crate::ws::hub::QuizPhase::RevealingAnswer,
+                                            question_index: state_ref.current_question_index,
+                                            total_questions,
+                                        };
+                                        broadcast_ws_message(&state.hub, event_id, phase_change).await;
+
                                         // Get all answers received
                                         let answers = &state_ref.answers_received;
                                         
@@ -1074,6 +1382,9 @@ pub async fn handle_ws_connection(
 
                                         // Broadcast reveal
                                         let reveal = ServerMessage::Reveal {
+                                            question_id,
+                                            question_number: question_number as i32,
+                                            question_text,
                                             correct_answer,
                                             distribution,
                                             segment_leaderboard,
@@ -1086,9 +1397,33 @@ pub async fn handle_ws_connection(
                         }
                     }
                     GameMessage::ShowLeaderboard => {
-                        // Get leaderboard for current segment or event
+                        // Set phase to ShowingLeaderboard
                         let game_state = state.hub.get_game_state(event_id).await;
                         if let Some(state_ref) = game_state {
+                            // Get total questions for phase change message
+                            let total_questions = if let Some(segment_id) = state_ref.current_segment_id {
+                                sqlx::query_scalar::<_, i64>(
+                                    "SELECT COUNT(*) FROM questions WHERE segment_id = $1"
+                                )
+                                .bind(segment_id)
+                                .fetch_one(&state.db)
+                                .await
+                                .unwrap_or(0) as i32
+                            } else {
+                                0
+                            };
+
+                            state.hub.set_quiz_phase(event_id, crate::ws::hub::QuizPhase::ShowingLeaderboard).await;
+
+                            // Broadcast phase change
+                            let phase_change = ServerMessage::PhaseChanged {
+                                phase: crate::ws::hub::QuizPhase::ShowingLeaderboard,
+                                question_index: state_ref.current_question_index,
+                                total_questions,
+                            };
+                            broadcast_ws_message(&state.hub, event_id, phase_change).await;
+
+                            // Get leaderboard for current segment or event
                             if let Some(segment_id) = state_ref.current_segment_id {
                                 // Get segment leaderboard
                                 let leaderboard_result = sqlx::query_as::<_, crate::models::question::LeaderboardEntry>(
@@ -1134,36 +1469,306 @@ pub async fn handle_ws_connection(
                         }
                     }
                     GameMessage::EndGame => {
-                        // Only host can end game
+                        // Verify authorization (host or segment presenter)
                         if let Some(uid) = user_id {
-                            let is_host = match sqlx::query_scalar::<_, bool>(
-                                "SELECT EXISTS(SELECT 1 FROM events WHERE id = $1 AND host_id = $2)"
-                            )
-                            .bind(event_id)
-                            .bind(uid)
-                            .fetch_one(&state.db)
-                            .await {
-                                Ok(result) => result,
-                                Err(e) => {
-                                    tracing::error!("Database error checking host status for end game: {}", e);
+                            let game_state = state.hub.get_game_state(event_id).await;
+                            let segment_id = match game_state {
+                                Some(ref state_ref) => state_ref.current_segment_id,
+                                None => {
                                     let error_msg = ServerMessage::Error {
-                                        message: "Failed to verify permissions".to_string(),
+                                        message: "No active segment".to_string(),
                                     };
                                     send_ws_message(&tx, error_msg).await;
                                     continue;
                                 }
                             };
 
-                            if !is_host {
-                                let error_msg = ServerMessage::Error {
-                                    message: "Only host can end game".to_string(),
+                            if let Some(seg_id) = segment_id {
+                                // Check authorization
+                                let is_authorized = match is_segment_controller(
+                                    &state.db,
+                                    event_id,
+                                    seg_id,
+                                    uid,
+                                ).await {
+                                    Ok(authorized) => authorized,
+                                    Err(e) => {
+                                        tracing::error!("Error checking segment controller: {}", e);
+                                        let error_msg = ServerMessage::Error {
+                                            message: "Failed to verify permissions".to_string(),
+                                        };
+                                        send_ws_message(&tx, error_msg).await;
+                                        continue;
+                                    }
                                 };
-                                send_ws_message(&tx, error_msg).await;
-                                continue;
-                            }
 
-                            let ended = ServerMessage::GameEnded;
-                            broadcast_ws_message(&state.hub, event_id, ended).await;
+                                if !is_authorized {
+                                    let error_msg = ServerMessage::Error {
+                                        message: "Not authorized to end quiz".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
+
+                                // Get segment info
+                                let segment = sqlx::query_as::<_, crate::models::event::Segment>(
+                                    "SELECT * FROM segments WHERE id = $1"
+                                )
+                                .bind(seg_id)
+                                .fetch_one(&state.db)
+                                .await;
+
+                                match segment {
+                                    Ok(seg) => {
+                                        // Get segment leaderboard
+                                        let segment_lb_result = sqlx::query_as::<_, crate::models::question::LeaderboardEntry>(
+                                            r#"
+                                            SELECT 
+                                                ROW_NUMBER() OVER (ORDER BY score DESC) as rank,
+                                                user_id,
+                                                username,
+                                                avatar_url,
+                                                score
+                                            FROM (
+                                                SELECT 
+                                                    ss.user_id,
+                                                    u.username,
+                                                    u.avatar_url,
+                                                    ss.score
+                                                FROM segment_scores ss
+                                                JOIN users u ON ss.user_id = u.id
+                                                WHERE ss.segment_id = $1
+                                                ORDER BY ss.score DESC
+                                            ) ranked
+                                            "#
+                                        )
+                                        .bind(seg_id)
+                                        .fetch_all(&state.db)
+                                        .await;
+
+                                        let segment_lb: Vec<crate::ws::messages::LeaderboardEntry> = segment_lb_result
+                                            .unwrap_or_default()
+                                            .into_iter()
+                                            .map(|e| crate::ws::messages::LeaderboardEntry {
+                                                rank: e.rank as i32,
+                                                user_id: e.user_id,
+                                                username: e.username,
+                                                avatar_url: e.avatar_url,
+                                                score: e.score,
+                                            })
+                                            .collect();
+
+                                        // Get event leaderboard
+                                        let event_lb_result = sqlx::query_as::<_, crate::models::question::LeaderboardEntry>(
+                                            r#"
+                                            SELECT 
+                                                ROW_NUMBER() OVER (ORDER BY total_score DESC) as rank,
+                                                user_id,
+                                                username,
+                                                avatar_url,
+                                                total_score as score
+                                            FROM (
+                                                SELECT 
+                                                    ep.user_id,
+                                                    u.username,
+                                                    u.avatar_url,
+                                                    ep.total_score
+                                                FROM event_participants ep
+                                                JOIN users u ON ep.user_id = u.id
+                                                WHERE ep.event_id = $1
+                                                ORDER BY ep.total_score DESC
+                                            ) ranked
+                                            "#
+                                        )
+                                        .bind(event_id)
+                                        .fetch_all(&state.db)
+                                        .await;
+
+                                        let event_lb: Vec<crate::ws::messages::LeaderboardEntry> = event_lb_result
+                                            .unwrap_or_default()
+                                            .into_iter()
+                                            .map(|e| crate::ws::messages::LeaderboardEntry {
+                                                rank: e.rank as i32,
+                                                user_id: e.user_id,
+                                                username: e.username,
+                                                avatar_url: e.avatar_url,
+                                                score: e.score,
+                                            })
+                                            .collect();
+
+                                        // Update segment status
+                                        let _ = sqlx::query("UPDATE segments SET status = 'completed' WHERE id = $1")
+                                            .bind(seg_id)
+                                            .execute(&state.db)
+                                            .await;
+
+                                        // Update quiz phase
+                                        state.hub.set_quiz_phase(event_id, crate::ws::hub::QuizPhase::SegmentComplete).await;
+
+                                        // Broadcast segment complete
+                                        let segment_complete = ServerMessage::SegmentComplete {
+                                            segment_id: seg_id,
+                                            segment_title: seg.title.unwrap_or_default(),
+                                            presenter_name: seg.presenter_name,
+                                            segment_leaderboard: segment_lb.clone(),
+                                            event_leaderboard: event_lb.clone(),
+                                            segment_winner: segment_lb.first().cloned(),
+                                            event_leader: event_lb.first().cloned(),
+                                        };
+                                        broadcast_ws_message(&state.hub, event_id, segment_complete).await;
+
+                                        // Check if all segments are complete
+                                        let incomplete_count: (i64,) = match sqlx::query_as(
+                                            "SELECT COUNT(*) FROM segments WHERE event_id = $1 AND status != 'completed'"
+                                        )
+                                        .bind(event_id)
+                                        .fetch_one(&state.db)
+                                        .await {
+                                            Ok(count) => count,
+                                            Err(e) => {
+                                                tracing::error!("Database error checking incomplete segments: {}", e);
+                                                (1,) // Assume incomplete to avoid premature completion
+                                            }
+                                        };
+
+                                        if incomplete_count.0 == 0 {
+                                            // All segments complete - end event
+                                            if let Err(e) = trigger_event_complete(&state, event_id).await {
+                                                tracing::error!("Failed to trigger event completion: {}", e);
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Database error fetching segment {}: {}", seg_id, e);
+                                        let error_msg = ServerMessage::Error {
+                                            message: "Failed to get segment information".to_string(),
+                                        };
+                                        send_ws_message(&tx, error_msg).await;
+                                    }
+                                }
+                            } else {
+                                // No active segment - just end game
+                                let ended = ServerMessage::GameEnded;
+                                broadcast_ws_message(&state.hub, event_id, ended).await;
+                            }
+                        }
+                    }
+                    GameMessage::PassPresenter { next_presenter_user_id } => {
+                        // Verify sender is current segment presenter or event host
+                        if let Some(uid) = user_id {
+                            let game_state = state.hub.get_game_state(event_id).await;
+                            let segment_id = match game_state {
+                                Some(ref state_ref) => state_ref.current_segment_id,
+                                None => {
+                                    let error_msg = ServerMessage::Error {
+                                        message: "No active segment".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
+                            };
+
+                            if let Some(seg_id) = segment_id {
+                                // Check authorization
+                                let is_authorized = match is_segment_controller(
+                                    &state.db,
+                                    event_id,
+                                    seg_id,
+                                    uid,
+                                ).await {
+                                    Ok(authorized) => authorized,
+                                    Err(e) => {
+                                        tracing::error!("Error checking segment controller: {}", e);
+                                        let error_msg = ServerMessage::Error {
+                                            message: "Failed to verify permissions".to_string(),
+                                        };
+                                        send_ws_message(&tx, error_msg).await;
+                                        continue;
+                                    }
+                                };
+
+                                if !is_authorized {
+                                    let error_msg = ServerMessage::Error {
+                                        message: "Not authorized to pass presenter".to_string(),
+                                    };
+                                    send_ws_message(&tx, error_msg).await;
+                                    continue;
+                                }
+
+                                // Verify next presenter is a participant in this event
+                                let next_presenter = sqlx::query_as::<_, (Uuid, String)>(
+                                    "SELECT u.id, u.username FROM users u
+                                     JOIN event_participants ep ON ep.user_id = u.id
+                                     WHERE ep.event_id = $1 AND u.id = $2"
+                                )
+                                .bind(event_id)
+                                .bind(next_presenter_user_id)
+                                .fetch_optional(&state.db)
+                                .await;
+
+                                match next_presenter {
+                                    Ok(Some((next_id, next_username))) => {
+                                        // Update segment presenter_user_id
+                                        let update_result = sqlx::query(
+                                            "UPDATE segments SET presenter_user_id = $1 WHERE id = $2"
+                                        )
+                                        .bind(next_presenter_user_id)
+                                        .bind(seg_id)
+                                        .execute(&state.db)
+                                        .await;
+
+                                        if update_result.is_ok() {
+                                            // Broadcast presenter change
+                                            let presenter_changed = ServerMessage::PresenterChanged {
+                                                previous_presenter_id: uid,
+                                                new_presenter_id: next_presenter_user_id,
+                                                new_presenter_name: next_username,
+                                                segment_id: seg_id,
+                                            };
+                                            broadcast_ws_message(&state.hub, event_id, presenter_changed).await;
+
+                                            // Check if all segments are complete (in case last segment was just completed)
+                                            let incomplete_count: (i64,) = match sqlx::query_as(
+                                                "SELECT COUNT(*) FROM segments WHERE event_id = $1 AND status != 'completed'"
+                                            )
+                                            .bind(event_id)
+                                            .fetch_one(&state.db)
+                                            .await {
+                                                Ok(count) => count,
+                                                Err(e) => {
+                                                    tracing::error!("Database error checking incomplete segments after pass presenter: {}", e);
+                                                    (1,) // Assume incomplete to avoid premature completion
+                                                }
+                                            };
+
+                                            if incomplete_count.0 == 0 {
+                                                // All segments complete - end event
+                                                if let Err(e) = trigger_event_complete(&state, event_id).await {
+                                                    tracing::error!("Failed to trigger event completion after pass presenter: {}", e);
+                                                }
+                                            }
+                                        } else {
+                                            let error_msg = ServerMessage::Error {
+                                                message: "Failed to update presenter".to_string(),
+                                            };
+                                            send_ws_message(&tx, error_msg).await;
+                                        }
+                                    }
+                                    Ok(None) => {
+                                        let error_msg = ServerMessage::Error {
+                                            message: "User not in event".to_string(),
+                                        };
+                                        send_ws_message(&tx, error_msg).await;
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Database error checking next presenter: {}", e);
+                                        let error_msg = ServerMessage::Error {
+                                            message: "Failed to verify next presenter".to_string(),
+                                        };
+                                        send_ws_message(&tx, error_msg).await;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1174,6 +1779,29 @@ pub async fn handle_ws_connection(
             Message::Close(_) => {
                 tracing::info!("Client disconnected");
                 if let Some(uid) = user_id {
+                    // Check if user is presenter before decrementing
+                    let game_state = state.hub.get_game_state(event_id).await;
+                    let mut is_presenter = false;
+                    if let Some(ref state_ref) = game_state {
+                        if let Some(segment_id) = state_ref.current_segment_id {
+                            let presenter_check = sqlx::query_scalar::<_, Option<Uuid>>(
+                                "SELECT presenter_user_id FROM segments WHERE id = $1"
+                            )
+                            .bind(segment_id)
+                            .fetch_one(&state.db)
+                            .await;
+                            
+                            if let Ok(Some(presenter_id)) = presenter_check {
+                                is_presenter = presenter_id == uid;
+                            }
+                        }
+                    }
+
+                    // Decrement participant count if not presenter
+                    if !is_presenter {
+                        state.hub.decrement_participant_count(event_id).await;
+                    }
+
                     state.hub.remove_participant(event_id, uid).await;
                     
                     // Broadcast participant left
@@ -1736,6 +2364,14 @@ async fn handle_audio_connection_rest(
                                         }
                                     };
                                     
+                                    // Send processing status: generating
+                                    let status_msg = ServerMessage::ProcessingStatus {
+                                        step: "generating".to_string(),
+                                        progress: Some(75),
+                                        message: "Generating questions from transcript...".to_string(),
+                                    };
+                                    broadcast_ws_message(&state.hub, event_id, status_msg).await;
+
                                     let question_service = crate::services::question_gen::QuestionGenerationService::new(
                                         state.db.clone(),
                                         ai_provider,
@@ -1810,6 +2446,22 @@ async fn handle_audio_connection_rest(
                 if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
                     if parsed.get("type").and_then(|v| v.as_str()) == Some("audio_stop") {
                         tracing::info!("Audio stream ended");
+                        // Send processing status: transcribing
+                        let status_msg = ServerMessage::ProcessingStatus {
+                            step: "transcribing".to_string(),
+                            progress: Some(50),
+                            message: "Processing final transcription...".to_string(),
+                        };
+                        broadcast_ws_message(&state.hub, event_id, status_msg).await;
+                        
+                        // Wait a bit for final transcripts to process, then send ready
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                        let ready_msg = ServerMessage::ProcessingStatus {
+                            step: "ready".to_string(),
+                            progress: Some(100),
+                            message: "Ready to start quiz".to_string(),
+                        };
+                        broadcast_ws_message(&state.hub, event_id, ready_msg).await;
                         break;
                     }
                 }
@@ -2009,6 +2661,13 @@ async fn handle_audio_connection_streaming(
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
                             if parsed.get("type").and_then(|v| v.as_str()) == Some("audio_stop") {
                                 tracing::info!("Audio stream ended");
+                                // Send processing status: transcribing
+                                let status_msg = ServerMessage::ProcessingStatus {
+                                    step: "transcribing".to_string(),
+                                    progress: Some(50),
+                                    message: "Processing final transcription...".to_string(),
+                                };
+                                broadcast_ws_message(&state.hub, event_id, status_msg).await;
                                 break;
                             }
                         }
@@ -2123,6 +2782,14 @@ async fn handle_audio_connection_streaming(
                                         )) as Box<dyn AIProvider>
                                     }
                                 };
+
+                                // Send processing status: generating
+                                let status_msg = ServerMessage::ProcessingStatus {
+                                    step: "generating".to_string(),
+                                    progress: Some(75),
+                                    message: "Generating questions from transcript...".to_string(),
+                                };
+                                broadcast_ws_message(&state.hub, event_id, status_msg).await;
 
                                 let question_service = crate::services::question_gen::QuestionGenerationService::new(
                                     state.db.clone(),
@@ -2380,6 +3047,13 @@ async fn handle_audio_connection_streaming_assemblyai(
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
                             if parsed.get("type").and_then(|v| v.as_str()) == Some("audio_stop") {
                                 tracing::info!("Audio stream ended");
+                                // Send processing status: transcribing
+                                let status_msg = ServerMessage::ProcessingStatus {
+                                    step: "transcribing".to_string(),
+                                    progress: Some(50),
+                                    message: "Processing final transcription...".to_string(),
+                                };
+                                broadcast_ws_message(&state.hub, event_id, status_msg).await;
                                 break;
                             }
                         }
@@ -2494,6 +3168,14 @@ async fn handle_audio_connection_streaming_assemblyai(
                                         )) as Box<dyn AIProvider>
                                     }
                                 };
+
+                                // Send processing status: generating
+                                let status_msg = ServerMessage::ProcessingStatus {
+                                    step: "generating".to_string(),
+                                    progress: Some(75),
+                                    message: "Generating questions from transcript...".to_string(),
+                                };
+                                broadcast_ws_message(&state.hub, event_id, status_msg).await;
 
                                 let question_service = crate::services::question_gen::QuestionGenerationService::new(
                                     state.db.clone(),

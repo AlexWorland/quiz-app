@@ -197,13 +197,14 @@ pub async fn add_question(
 
     let segment = sqlx::query_as::<_, Segment>(
         r#"
-        INSERT INTO segments (event_id, presenter_name, title, order_index, status)
-        VALUES ($1, $2, $3, $4, 'pending')
+        INSERT INTO segments (event_id, presenter_name, presenter_user_id, title, order_index, status)
+        VALUES ($1, $2, $3, $4, $5, 'pending')
         RETURNING *
         "#,
     )
     .bind(id)
     .bind(&req.presenter_name)
+    .bind(req.presenter_user_id)
     .bind(&req.title)
     .bind(next_index.0 as i32)
     .fetch_one(&state.db)

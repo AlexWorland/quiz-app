@@ -1,173 +1,86 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { CanvasToolbar } from '../CanvasToolbar'
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { CanvasToolbar } from '../CanvasToolbar';
+
+// Mock lucide-react icon
+vi.mock('lucide-react', () => ({
+  Trash2: () => <div data-testid="trash-icon">Trash</div>,
+}));
 
 describe('CanvasToolbar', () => {
-  const mockOnColorChange = vi.fn()
-  const mockOnBrushSizeChange = vi.fn()
-  const mockOnClear = vi.fn()
+  const defaultProps = {
+    color: '#ffffff',
+    brushSize: 3,
+    onColorChange: vi.fn(),
+    onBrushSizeChange: vi.fn(),
+    onClear: vi.fn(),
+  };
 
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
-  it('should render ColorPalette and BrushSizeSelector', () => {
-    render(
-      <CanvasToolbar
-        color="#ffffff"
-        brushSize={3}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
+  it('should render color palette', () => {
+    render(<CanvasToolbar {...defaultProps} />);
+    expect(screen.getByLabelText('Select color #ffffff')).toBeInTheDocument();
+  });
 
-    const colorButton = screen.getByLabelText('Select color #ffffff')
-    const brushButton = screen.getByLabelText('Brush size 3')
+  it('should render brush size selector', () => {
+    render(<CanvasToolbar {...defaultProps} />);
+    expect(screen.getByLabelText('Brush size 3')).toBeInTheDocument();
+  });
 
-    expect(colorButton).toBeInTheDocument()
-    expect(brushButton).toBeInTheDocument()
-  })
+  it('should render clear button when canClear is true', () => {
+    render(<CanvasToolbar {...defaultProps} canClear={true} />);
+    expect(screen.getByText('Clear Canvas')).toBeInTheDocument();
+    expect(screen.getByTestId('trash-icon')).toBeInTheDocument();
+  });
 
-  it('should render Clear button when canClear is true (default)', () => {
-    render(
-      <CanvasToolbar
-        color="#ffffff"
-        brushSize={3}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
+  it('should not render clear button when canClear is false', () => {
+    render(<CanvasToolbar {...defaultProps} canClear={false} />);
+    expect(screen.queryByText('Clear Canvas')).not.toBeInTheDocument();
+  });
 
-    const clearButton = screen.getByRole('button', { name: /Clear Canvas/i })
-    expect(clearButton).toBeInTheDocument()
-  })
+  it('should call onClear when clear button is clicked', async () => {
+    render(<CanvasToolbar {...defaultProps} />);
+    const clearButton = screen.getByText('Clear Canvas');
+    await userEvent.click(clearButton);
 
-  it('should hide Clear button when canClear is false', () => {
-    render(
-      <CanvasToolbar
-        color="#ffffff"
-        brushSize={3}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-        canClear={false}
-      />
-    )
+    expect(defaultProps.onClear).toHaveBeenCalledTimes(1);
+  });
 
-    const clearButton = screen.queryByRole('button', { name: /Clear Canvas/i })
-    expect(clearButton).not.toBeInTheDocument()
-  })
+  it('should pass color to ColorPalette', () => {
+    render(<CanvasToolbar {...defaultProps} color="#ef4444" />);
+    const selectedColorButton = screen.getByLabelText('Select color #ef4444');
+    expect(selectedColorButton).toHaveClass('border-white');
+  });
 
-  it('should call onClear when Clear button clicked', async () => {
-    const user = userEvent.setup()
-    render(
-      <CanvasToolbar
-        color="#ffffff"
-        brushSize={3}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
+  it('should pass brushSize to BrushSizeSelector', () => {
+    render(<CanvasToolbar {...defaultProps} brushSize={5} />);
+    const selectedSizeButton = screen.getByLabelText('Brush size 5');
+    expect(selectedSizeButton).toHaveClass('border-accent-cyan');
+  });
 
-    const clearButton = screen.getByRole('button', { name: /Clear Canvas/i })
-    await user.click(clearButton)
+  it('should call onColorChange when color is selected', async () => {
+    render(<CanvasToolbar {...defaultProps} />);
+    const colorButton = screen.getByLabelText('Select color #ef4444');
+    await userEvent.click(colorButton);
 
-    expect(mockOnClear).toHaveBeenCalled()
-  })
+    expect(defaultProps.onColorChange).toHaveBeenCalledWith('#ef4444');
+  });
 
-  it('should pass color prop to ColorPalette', () => {
-    const { rerender } = render(
-      <CanvasToolbar
-        color="#ef4444"
-        brushSize={3}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
+  it('should call onBrushSizeChange when brush size is selected', async () => {
+    render(<CanvasToolbar {...defaultProps} />);
+    const sizeButton = screen.getByLabelText('Brush size 5');
+    await userEvent.click(sizeButton);
 
-    let selectedButton = screen.getByLabelText('Select color #ef4444')
-    expect(selectedButton).toHaveClass('scale-110')
+    expect(defaultProps.onBrushSizeChange).toHaveBeenCalledWith(5);
+  });
 
-    rerender(
-      <CanvasToolbar
-        color="#3b82f6"
-        brushSize={3}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
+  it('should default canClear to true', () => {
+    render(<CanvasToolbar color="#ffffff" brushSize={3} onColorChange={vi.fn()} onBrushSizeChange={vi.fn()} onClear={vi.fn()} />);
+    expect(screen.getByText('Clear Canvas')).toBeInTheDocument();
+  });
+});
 
-    selectedButton = screen.getByLabelText('Select color #3b82f6')
-    expect(selectedButton).toHaveClass('scale-110')
-  })
-
-  it('should pass brushSize prop to BrushSizeSelector', () => {
-    const { rerender } = render(
-      <CanvasToolbar
-        color="#ffffff"
-        brushSize={5}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
-
-    let selectedButton = screen.getByLabelText('Brush size 5')
-    expect(selectedButton).toHaveClass('border-accent-cyan')
-
-    rerender(
-      <CanvasToolbar
-        color="#ffffff"
-        brushSize={12}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
-
-    selectedButton = screen.getByLabelText('Brush size 12')
-    expect(selectedButton).toHaveClass('border-accent-cyan')
-  })
-
-  it('should call onColorChange when color is changed', async () => {
-    const user = userEvent.setup()
-    render(
-      <CanvasToolbar
-        color="#ffffff"
-        brushSize={3}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
-
-    const redButton = screen.getByLabelText('Select color #ef4444')
-    await user.click(redButton)
-
-    expect(mockOnColorChange).toHaveBeenCalledWith('#ef4444')
-  })
-
-  it('should call onBrushSizeChange when brush size is changed', async () => {
-    const user = userEvent.setup()
-    render(
-      <CanvasToolbar
-        color="#ffffff"
-        brushSize={3}
-        onColorChange={mockOnColorChange}
-        onBrushSizeChange={mockOnBrushSizeChange}
-        onClear={mockOnClear}
-      />
-    )
-
-    const size8Button = screen.getByLabelText('Brush size 8')
-    await user.click(size8Button)
-
-    expect(mockOnBrushSizeChange).toHaveBeenCalledWith(8)
-  })
-})
