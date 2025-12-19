@@ -1,5 +1,5 @@
 # Development Dockerfile for Rust Backend
-FROM rust:1.83-bookworm
+FROM rust:latest
 
 WORKDIR /app
 

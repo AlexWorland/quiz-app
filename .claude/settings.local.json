@@ -39,7 +39,13 @@
       "Bash(timeout 30 npx vitest run:*)",
       "Bash(ls:*)",
       "Bash(git ls-tree:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(docker pull:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker system prune:*)",
+      "Skill(commit-commands:commit)"
     ]
   }
 }

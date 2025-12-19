@@ -59,6 +59,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # MinIO/S3
 aws-sdk-s3 = "1"
 aws-config = "1"
+aws-smithy-runtime = "1"
+aws-smithy-runtime-api = "1"
 
 [dev-dependencies]
 tokio-test = "0.4"

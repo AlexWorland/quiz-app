@@ -1,16 +1,16 @@
 # Build stage
-FROM rust:1.83-bookworm as builder
+FROM rust:nightly as builder
 
 WORKDIR /app
 
-# Install sqlx-cli for migrations
-RUN cargo install sqlx-cli --no-default-features --features postgres
-
-# Copy Cargo files
+# Copy Cargo files first to cache dependencies
 COPY Cargo.toml Cargo.lock* ./
 
 # Create dummy main to cache dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
+
+# Install sqlx-cli for migrations
+RUN cargo install sqlx-cli --no-default-features --features postgres
 
 # Copy actual source code
 COPY src src/
