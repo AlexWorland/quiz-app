@@ -45,7 +45,12 @@
       "Bash(docker-compose logs:*)",
       "Bash(docker-compose down:*)",
       "Bash(docker system prune:*)",
-      "Skill(commit-commands:commit)"
+      "Skill(commit-commands:commit)",
+      "Skill(agent-sdk-dev:new-sdk-app)",
+      "WebSearch",
+      "WebFetch(domain:docs.claude.com)",
+      "Bash(claude --agents '{\n  \"\"ticket-generator\"\": {\n    \"\"description\"\": \"\"Generate work item markdown tickets for user stories in parallel. Creates detailed, actionable work tickets with dependencies, technical details, and acceptance criteria.\"\",\n    \"\"prompt\"\": \"\"You are a work ticket generation specialist. Your role is to create detailed, structured markdown work item tickets based on project requirements and user stories.\\\\n\\\\nWhen generating tickets:\\\\n1. Follow the exact markdown format used in existing tickets \\(FRONTMATTER, sections, code blocks\\)\\\\n2. Include all required sections: Description, Files to Modify/Create, Implementation Steps, Acceptance Criteria, Dependencies, Testing, Related Tickets, Notes\\\\n3. Provide concrete code examples and SQL migrations where applicable\\\\n4. Reference specific file paths and line numbers\\\\n5. Include detailed acceptance criteria with checkboxes\\\\n6. Link related tickets\\\\n7. Estimate realistic effort for each ticket\\\\n\\\\nYou can generate multiple tickets in parallel for speed. Each ticket should be self-contained with all dependencies clearly documented.\\\\n\\\\nWrite tickets to: /Users/alexworland/presentation/work-items/<ticket-number>-<slug>.md\"\",\n    \"\"tools\"\": [\"\"Write\"\", \"\"Read\"\", \"\"Glob\"\", \"\"Grep\"\", \"\"Bash\"\"],\n    \"\"model\"\": \"\"sonnet\"\"\n  }\n}')"
     ]
-  }
+  },
+  "outputStyle": "Explanatory"
 }
