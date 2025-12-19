@@ -132,9 +132,15 @@ docker-compose down -v
   - `endpoints.ts`: Type-safe API endpoint definitions
 - **`components/ProtectedRoute.tsx`**: Route guard wrapper requiring authentication
 
+**Custom Hooks** in `frontend/src/hooks/`:
+- `useEventWebSocket.ts`: Main game/event WebSocket connection (participants, questions, answers, leaderboard)
+- `useAudioWebSocket.ts`: Audio streaming for transcription (recording segments)
+- `useCanvasWebSocket.ts`: Real-time drawing canvas synchronization
+- `useOnlineStatus.ts`: Network connectivity detection
+
 **State Management**:
 - `authStore`: Handles login/registration, JWT persistence, user profile
-- WebSocket connections for real-time updates (event participants, canvas, leaderboard)
+- WebSocket hooks manage real-time connections for events, canvas, and audio
 
 ### Data Model
 
@@ -145,12 +151,29 @@ docker-compose down -v
 - **Question**: Quiz questions with multiple choice answers
 - **Session**: Legacy game session (backward compatibility)
 
-**WebSocket Messages** (JSON):
-- Event state updates (participants, current question)
-- Answer submissions
-- Canvas strokes (collaborative drawing)
-- Leaderboard updates
-- Recording status changes
+**WebSocket Message Types**:
+
+*Game Messages* (client → server):
+- `join`, `answer`, `start_game`, `next_question`, `reveal_answer`, `show_leaderboard`, `end_game`, `pass_presenter`
+
+*Server Messages* (server → client):
+- Quiz flow: `game_started`, `question`, `time_update`, `answer_received`, `reveal`, `phase_changed`, `all_answered`
+- Participants: `connected`, `participant_joined`, `participant_left`
+- Results: `leaderboard`, `scores_update`, `segment_complete`, `event_complete`
+- Multi-presenter: `presenter_changed`
+- Status: `processing_status`, `display_mode`, `error`
+
+*Audio Messages*: `audio_chunk`, `audio_stop`, `transcript_update`, `question_generated`
+*Canvas Messages*: `draw_stroke`, `clear_canvas`, `stroke_added`, `canvas_sync`
+
+**Multi-Presenter Flow**:
+- Events contain multiple Segments, each with a designated presenter
+- `PassPresenter` message transfers control between presenters
+- Segment completion triggers `segment_complete` with per-segment leaderboard
+- Event completion aggregates all segment scores into final leaderboard
+
+**Quiz Phases** (state machine):
+`not_started` → `showing_question` → `revealing_answer` → `showing_leaderboard` → `between_questions` → (repeat or) `segment_complete` → `event_complete`
 
 ## Development Workflow
 
@@ -225,6 +248,7 @@ docker-compose down -v
 ### Frontend Unit Tests (Vitest)
 
 ```bash
+cd frontend           # Required - tests must run from frontend directory
 npm test              # Run all unit tests
 npm run test:watch    # Watch mode
 npm run test:coverage # With coverage report
@@ -241,6 +265,7 @@ npm run test:coverage # With coverage report
 ### Frontend E2E Tests (Playwright)
 
 ```bash
+cd frontend               # Required - tests must run from frontend directory
 npm run test:e2e          # Run all E2E tests (headless)
 npm run test:e2e:ui       # Open Playwright UI for debugging
 npm run test:e2e:headed   # Run with visible browser
@@ -268,6 +293,7 @@ npm run test:e2e:headed   # Run with visible browser
 | `backend/src/services/ai.rs` | AI provider abstraction (Claude/OpenAI/Ollama) |
 | `frontend/src/store/authStore.ts` | Authentication state persistence |
 | `frontend/src/api/endpoints.ts` | Type-safe API client definitions |
+| `frontend/src/hooks/useEventWebSocket.ts` | Main quiz WebSocket connection and state |
 | `docker-compose.yml` | Service orchestration and environment setup |
 
 ## Environment Variables
@@ -284,8 +310,13 @@ npm run test:e2e:headed   # Run with visible browser
 - `OPENAI_API_KEY`: OpenAI API key (if using openai provider)
 - `OLLAMA_BASE_URL`: Ollama endpoint (default: `http://localhost:11434`)
 - `DEEPGRAM_API_KEY` / `ASSEMBLYAI_API_KEY`: Speech-to-text providers
+- `ENABLE_STREAMING_TRANSCRIPTION`: Enable real-time Deepgram WebSocket streaming (default: `false`)
 - `MINIO_*`: MinIO credentials and bucket configuration
 - `RUST_LOG`: Log level (default: `info`)
+
+**Transcription Modes**:
+- Streaming (`ENABLE_STREAMING_TRANSCRIPTION=true`): Real-time Deepgram WebSocket with sub-second latency
+- REST (default): Polling-based transcription, more compatible but higher latency
 
 **Production Mode** (`RUST_ENV=production`):
 - Validates that `JWT_SECRET` is not the default value
@@ -321,6 +352,32 @@ Use the `/ws-debug <session-code>` command to test WebSocket connections and ins
 - JWT validates signature on protected routes
 - Passwords hashed with argon2 before storage
 - Avatar upload validated (size, format)
+
+## Claude Code Slash Commands
+
+This project provides custom slash commands in `.claude/commands/`:
+
+| Command | Purpose |
+|---------|---------|
+| `/ws-debug <code>` | Test WebSocket connections and inspect game state |
+| `/run-tests [backend\|frontend\|all]` | Run tests for backend and/or frontend |
+| `/build-check [backend\|frontend\|docker]` | Verify builds succeed |
+| `/ai-test [claude\|openai\|ollama]` | Test AI provider connections |
+| `/db-migrate [create\|run\|revert]` | Manage database migrations |
+| `/docker-up [service]` | Start Docker Compose services |
+| `/git-status` | Show git status and recent changes |
+| `/rust-review [focus]` | Review Rust code for security |
+| `/react-review [component]` | Review React code for best practices |
+
+## Architecture Diagrams
+
+See `ARCHITECTURE.md` for detailed mermaid diagrams covering:
+- System overview and component architecture
+- WebSocket communication sequences
+- Quiz session lifecycle state machine
+- AI question generation flow
+- Authentication flow
+- Database entity relationships
 
 ## Common Issues & Solutions
 
