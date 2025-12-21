@@ -1,8 +1,121 @@
 # Test Runner Scripts
 
-This directory contains scripts for running end-to-end tests with automatic service management.
+This directory contains scripts for running tests with Docker and without Docker.
 
 ## Available Scripts
+
+### Non-Docker Scripts (Recommended for Local Development)
+
+These scripts run tests without Docker, requiring services to be installed and running locally.
+
+#### Backend Tests
+
+**`run-backend-tests-local.sh`** - Run backend unit and integration tests without Docker
+
+**Usage:**
+```bash
+# Run all tests (unit + integration)
+./scripts/run-backend-tests-local.sh
+
+# Run only unit tests (no database required)
+./scripts/run-backend-tests-local.sh --unit-only
+
+# Run only integration tests (requires database)
+./scripts/run-backend-tests-local.sh --integration-only
+
+# Run specific test
+./scripts/run-backend-tests-local.sh -- test_name
+
+# Use custom test database
+TEST_DATABASE_URL=postgres://user:pass@host:5432/db ./scripts/run-backend-tests-local.sh
+```
+
+**Features:**
+- Automatically checks PostgreSQL connection
+- Creates test database if it doesn't exist
+- Runs unit tests (no dependencies)
+- Runs integration tests (with database)
+- Colored output for better readability
+
+#### Frontend Unit Tests
+
+**`run-frontend-tests-local.sh`** - Run frontend unit tests without Docker
+
+**Usage:**
+```bash
+# Run all unit tests
+./scripts/run-frontend-tests-local.sh
+
+# Run with coverage
+./scripts/run-frontend-tests-local.sh --coverage
+
+# Run in watch mode
+./scripts/run-frontend-tests-local.sh --watch
+
+# Run specific test file
+./scripts/run-frontend-tests-local.sh -- src/store/__tests__/authStore.test.ts
+```
+
+**Features:**
+- Checks Node.js and npm installation
+- Installs dependencies if needed
+- Runs Vitest unit tests
+- Supports coverage and watch modes
+
+#### Frontend E2E Tests
+
+**`run-e2e-tests-local.sh`** - Run frontend E2E tests without Docker (requires services running)
+
+**Usage:**
+```bash
+# Run all E2E tests (requires backend and frontend running)
+./scripts/run-e2e-tests-local.sh
+
+# Run specific test file
+./scripts/run-e2e-tests-local.sh --file e2e/auth.spec.ts
+
+# Run in headed mode (show browser)
+./scripts/run-e2e-tests-local.sh --headed
+
+# Run in UI mode (interactive)
+./scripts/run-e2e-tests-local.sh --ui
+
+# Skip service checks
+./scripts/run-e2e-tests-local.sh --skip-checks
+```
+
+**Features:**
+- Checks service availability (backend, frontend, PostgreSQL, MinIO)
+- Installs Playwright browsers if needed
+- Runs Playwright E2E tests
+- Supports headed and UI modes
+
+#### All Tests
+
+**`run-all-tests-local.sh`** - Run all tests (backend unit, backend integration, frontend unit, frontend E2E)
+
+**Usage:**
+```bash
+# Run all tests
+./scripts/run-all-tests-local.sh
+
+# Skip E2E tests
+./scripts/run-all-tests-local.sh --skip-frontend-e2e
+
+# Skip backend integration tests
+./scripts/run-all-tests-local.sh --skip-backend-integration
+
+# Skip multiple test suites
+./scripts/run-all-tests-local.sh --skip-backend-integration --skip-frontend-e2e
+```
+
+**Features:**
+- Runs all test suites in sequence
+- Provides summary of all test results
+- Can skip specific test suites
+- Interactive prompt for E2E tests
+
+### Docker Scripts (For CI/CD and Containerized Environments)
 
 ### Shell Script (Bash)
 
@@ -69,7 +182,24 @@ node scripts/run-e2e-tests.js --help
 
 ## Prerequisites
 
-### Required
+### For Non-Docker Scripts
+
+**Required:**
+- **Rust/Cargo** - For backend compilation and tests
+- **Node.js** (v18+) - For frontend and Playwright tests
+- **PostgreSQL** (v15+) - For database and integration tests
+- **MinIO** - For S3-compatible storage (optional, but recommended)
+
+**Setup:**
+1. Install Rust: https://rustup.rs/
+2. Install Node.js: https://nodejs.org/
+3. Install PostgreSQL: https://www.postgresql.org/download/
+4. Install MinIO: https://min.io/download
+5. Create databases: See `RUNNING_WITHOUT_DOCKER.md` for setup instructions
+
+### For Docker Scripts
+
+**Required:**
 - **Docker** - For running PostgreSQL and MinIO services
 - **Node.js** - For running frontend and Playwright tests
 - **Rust/Cargo** - For running backend server (if not using Docker)
@@ -91,6 +221,31 @@ node scripts/run-e2e-tests.js --help
 - **docker-compose** or **docker compose** - For managing Docker services
 
 ## Quick Start
+
+### Non-Docker (Local Development)
+
+1. **Make scripts executable** (Unix/Linux/Mac):
+   ```bash
+   chmod +x scripts/run-*-local.sh
+   ```
+
+2. **Set up services** (PostgreSQL, MinIO):
+   - See `RUNNING_WITHOUT_DOCKER.md` for detailed setup instructions
+   - Ensure PostgreSQL is running and databases are created
+   - Start MinIO if needed
+
+3. **Run tests**:
+   ```bash
+   # Run all tests
+   ./scripts/run-all-tests-local.sh
+
+   # Or run individually
+   ./scripts/run-backend-tests-local.sh
+   ./scripts/run-frontend-tests-local.sh
+   ./scripts/run-e2e-tests-local.sh  # Requires services running
+   ```
+
+### Docker (CI/CD)
 
 1. **Make scripts executable** (Unix/Linux/Mac):
    ```bash
@@ -127,7 +282,43 @@ The application includes a Test Runner UI page (development mode only) that prov
 
 ## Manual Test Execution
 
-If you prefer to run tests manually without the scripts:
+### Without Docker
+
+If you prefer to run tests manually without scripts:
+
+1. **Start services**:
+   ```bash
+   # PostgreSQL (usually runs as service)
+   # MinIO
+   minio server ~/minio-data --console-address ":9001"
+   ```
+
+2. **Start backend**:
+   ```bash
+   cd backend
+   cargo run
+   ```
+
+3. **Start frontend** (for E2E tests):
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+
+4. **Run tests** (in another terminal):
+   ```bash
+   # Backend tests
+   cd backend
+   cargo test --lib                    # Unit tests
+   TEST_DATABASE_URL=... cargo test --test '*'  # Integration tests
+
+   # Frontend tests
+   cd frontend
+   npm test                    # Unit tests
+   npm run test:e2e            # E2E tests
+   ```
+
+### With Docker
 
 1. **Start services**:
    ```bash
@@ -190,7 +381,21 @@ Or use the scripts directly:
 
 ## Environment Variables
 
-The scripts respect these environment variables:
+### Non-Docker Scripts
+
+- `TEST_DATABASE_URL` - PostgreSQL connection string for test database
+  - Default: `postgres://quiz:quiz@localhost:5432/quiz_test`
+  - Used by: `run-backend-tests-local.sh`
+
+- `BACKEND_URL` - Backend URL
+  - Default: `http://localhost:8080`
+  - Used by: `run-e2e-tests-local.sh`
+
+- `FRONTEND_URL` - Frontend URL
+  - Default: `http://localhost:5173`
+  - Used by: `run-e2e-tests-local.sh`
+
+### Docker Scripts
 
 - `BACKEND_URL` - Backend URL (default: `http://localhost:8080`)
 - `FRONTEND_URL` - Frontend URL (default: `http://localhost:5173`)
