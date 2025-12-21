@@ -104,6 +104,14 @@ else
         fi
     fi
 
+    # Grant schema and table permissions
+    print_info "Ensuring database permissions..."
+    psql postgres -c "GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;" >/dev/null 2>&1 || true
+    psql "$DB_NAME" -c "GRANT ALL ON SCHEMA public TO $DB_USER;" >/dev/null 2>&1 || true
+    psql "$DB_NAME" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO $DB_USER;" >/dev/null 2>&1 || true
+    psql "$DB_NAME" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO $DB_USER;" >/dev/null 2>&1 || true
+    print_success "Database permissions granted"
+
     # Create .env file if it doesn't exist
     if [ ! -f ".env" ]; then
         print_info "Creating .env file..."

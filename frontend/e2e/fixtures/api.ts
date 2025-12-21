@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test';
  * Provides helpers for API interactions and backend state
  */
 
-const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:8081/api';
+const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:8080/api';
 
 /**
  * Make API request from test context
@@ -93,12 +93,12 @@ export async function deleteEvent(page: Page, eventId: string): Promise<void> {
 
 /**
  * Check if backend is available
- * Uses the correct port (8081) - API_BASE_URL already includes /api
+ * Uses the correct port (8080) - API_BASE_URL already includes /api
  */
 export async function isBackendAvailable(page: Page): Promise<boolean> {
   try {
     // Try health endpoint first (doesn't require auth)
-    // API_BASE_URL is already http://localhost:8081/api, so health is at /health
+    // API_BASE_URL is already http://localhost:8080/api, so health is at /health
     const healthUrl = API_BASE_URL.replace('/api', '') + '/api/health';
     try {
       const response = await page.request.fetch(healthUrl, {

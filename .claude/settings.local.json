@@ -73,7 +73,11 @@
       "Bash(~/.zshrc)",
       "Bash(./scripts/run-backend-tests-local.sh:*)",
       "Bash(./scripts/run-frontend-tests-local.sh:*)",
-      "Bash(/opt/homebrew/opt/postgresql@15/bin/dropdb:*)"
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/dropdb:*)",
+      "Bash(./scripts/run-e2e-tests-local.sh:*)",
+      "Bash(./scripts/run-e2e-tests-automated.sh:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)"
     ]
   },
   "outputStyle": "Explanatory"
