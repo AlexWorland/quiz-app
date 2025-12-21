@@ -9,6 +9,13 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     testTimeout: 5000,
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/e2e/**',
+      '**/*.e2e.{ts,tsx}',
+      '**/.{idea,git,cache,output,temp}/**',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -18,6 +25,7 @@ export default defineConfig({
         '**/*.test.{ts,tsx}',
         '**/__tests__/',
         'src/vite-env.d.ts',
+        'e2e/**',
       ],
     },
   },

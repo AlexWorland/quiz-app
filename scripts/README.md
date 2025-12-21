@@ -74,6 +74,19 @@ node scripts/run-e2e-tests.js --help
 - **Node.js** - For running frontend and Playwright tests
 - **Rust/Cargo** - For running backend server (if not using Docker)
 
+### Backend Test Script
+
+**`run-backend-tests.sh`** - Reset the test database and run backend tests in Docker
+
+**Usage:**
+```bash
+# Run all backend tests (resets quiz_test first)
+./scripts/run-backend-tests.sh
+
+# Run a specific test
+./scripts/run-backend-tests.sh api_tests::test_create_event
+```
+
 ### Optional
 - **docker-compose** or **docker compose** - For managing Docker services
 
@@ -196,4 +209,3 @@ Add new service checks in the `checkDockerServices()` or `waitForService()` func
 ### Custom Test Commands
 
 Modify the `runTests()` function to add custom test execution logic.
-

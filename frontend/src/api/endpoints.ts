@@ -18,6 +18,12 @@ export interface AuthResponse {
   user: User
 }
 
+export interface UpdateProfileRequest {
+  username?: string
+  avatar_url?: string
+  avatar_type?: 'emoji' | 'preset' | 'custom'
+}
+
 // Auth endpoints
 export const authAPI = {
   register: (data: RegisterRequest) =>
@@ -29,7 +35,7 @@ export const authAPI = {
   getMe: () =>
     client.get<User>('/auth/me'),
 
-  updateProfile: (data: Partial<User>) =>
+  updateProfile: (data: UpdateProfileRequest) =>
     client.put<User>('/auth/profile', data),
 }
 

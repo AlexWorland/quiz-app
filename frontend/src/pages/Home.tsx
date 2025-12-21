@@ -21,6 +21,9 @@ export function HomePage() {
             <span className="text-gray-300">
               {user?.avatar_type === 'emoji' ? user.avatar_url : '👤'} {user?.username}
             </span>
+            <Button onClick={() => navigate('/account')} variant="secondary">
+              Account
+            </Button>
             <Button onClick={handleLogout} variant="secondary">
               Logout
             </Button>

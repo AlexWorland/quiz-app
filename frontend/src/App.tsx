@@ -7,6 +7,7 @@ import { EventsPage } from './pages/Events'
 import { EventDetailPage } from './pages/EventDetail'
 import { EventPage } from './pages/EventPage'
 import { JoinEvent } from './pages/JoinEvent'
+import { AccountSettingsPage } from './pages/AccountSettings'
 import { TestRunnerPage } from './pages/TestRunner'
 import { ProtectedRoute } from './components/ProtectedRoute'
 
@@ -32,6 +33,15 @@ function App() {
           element={
             <ProtectedRoute>
               <HomePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute>
+              <AccountSettingsPage />
             </ProtectedRoute>
           }
         />

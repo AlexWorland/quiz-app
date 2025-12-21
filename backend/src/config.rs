@@ -1,5 +1,3 @@
-use anyhow::Result;
-
 /// Application configuration loaded from environment variables
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -59,7 +57,7 @@ pub struct Config {
 
 impl Config {
     /// Load configuration from environment variables
-    pub fn from_env() -> Result<Self> {
+    pub fn from_env() -> crate::error::Result<Self> {
         Ok(Self {
             // Environment
             rust_env: std::env::var("RUST_ENV")
@@ -94,8 +92,6 @@ impl Config {
             // AI Providers
             default_ai_provider: std::env::var("DEFAULT_AI_PROVIDER")
                 .unwrap_or_else(|_| "claude".to_string()),
-            // Default question generation interval (can be overridden per event)
-            // Note: This is a fallback; events can have their own interval setting
             anthropic_api_key: std::env::var("ANTHROPIC_API_KEY").ok()
                 .filter(|s| !s.is_empty()),
             openai_api_key: std::env::var("OPENAI_API_KEY").ok()
@@ -105,7 +101,7 @@ impl Config {
             ollama_model: std::env::var("OLLAMA_MODEL")
                 .unwrap_or_else(|_| "llama2".to_string()),
 
-            // STT Providers
+            // Speech-to-Text
             default_stt_provider: std::env::var("DEFAULT_STT_PROVIDER")
                 .unwrap_or_else(|_| "deepgram".to_string()),
             deepgram_api_key: std::env::var("DEEPGRAM_API_KEY").ok()
@@ -113,14 +109,12 @@ impl Config {
             assemblyai_api_key: std::env::var("ASSEMBLYAI_API_KEY").ok()
                 .filter(|s| !s.is_empty()),
             enable_streaming_transcription: std::env::var("ENABLE_STREAMING_TRANSCRIPTION")
-                .unwrap_or_else(|_| "false".to_string())
-                .parse()
+                .map(|s| matches!(s.to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
                 .unwrap_or(false),
 
             // AI Quality Scoring
             enable_ai_quality_scoring: std::env::var("ENABLE_AI_QUALITY_SCORING")
-                .unwrap_or_else(|_| "false".to_string())
-                .parse()
+                .map(|s| matches!(s.to_lowercase().as_str(), "true" | "1" | "yes" | "on"))
                 .unwrap_or(false),
 
             // Server
@@ -129,19 +123,13 @@ impl Config {
                 .parse()
                 .unwrap_or(8080),
             frontend_url: std::env::var("FRONTEND_URL")
-                .unwrap_or_else(|_| "http://localhost:5173".to_string()),
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
 
             // CORS
-            cors_allowed_origins: std::env::var("CORS_ALLOWED_ORIGINS")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .map(|s| s.split(',').map(|o| o.trim().to_string()).collect()),
+            cors_allowed_origins: std::env::var("CORS_ALLOWED_ORIGINS").ok()
+                .map(|s| s.split(',').map(|s| s.trim().to_string()).collect()),
 
-            // Canvas sync performance
-            // Limits the number of strokes synced when a user joins an event
-            // This prevents performance issues with events that have many canvas strokes
-            // Tradeoff: Users joining late may not see all historical strokes
-            // Consider pagination or time-based filtering for very large events
+            // Canvas sync limit
             canvas_sync_limit: std::env::var("CANVAS_SYNC_LIMIT")
                 .unwrap_or_else(|_| "100".to_string())
                 .parse()
@@ -149,50 +137,264 @@ impl Config {
         })
     }
 
-    /// Returns true if running in production mode
+    /// Check if running in production environment
     pub fn is_production(&self) -> bool {
         self.rust_env == "production"
     }
 
-    /// Validate configuration for production deployment.
-    /// Returns an error if critical security settings are using default values.
-    pub fn validate_for_production(&self) -> Result<()> {
+    /// Validate production configuration requirements
+    /// Returns Ok(()) if validation passes or not in production mode
+    /// Returns Err with details about missing/invalid configurations in production mode
+    pub fn validate_for_production(&self) -> crate::error::Result<()> {
+        // Skip validation if not in production
         if !self.is_production() {
             return Ok(());
         }
 
         let mut errors = Vec::new();
 
-        // Check for default JWT secret
+        // Check JWT_SECRET is not default
         if self.jwt_secret == "development-secret-change-in-production" {
-            errors.push("JWT_SECRET must be changed from the default value for production");
+            errors.push("JWT_SECRET must be changed from default value in production".to_string());
         }
 
-        // Check for default encryption key
+        // Check ENCRYPTION_KEY is not default
         if self.encryption_key == "32-byte-secret-key-change-me!!!" {
-            errors.push("ENCRYPTION_KEY must be changed from the default value for production");
+            errors.push("ENCRYPTION_KEY must be changed from default value in production".to_string());
         }
 
-        // Check that at least one AI provider is configured
-        let has_ai_provider = self.anthropic_api_key.is_some()
-            || self.openai_api_key.is_some()
-            || !self.ollama_base_url.is_empty();
-        if !has_ai_provider {
-            errors.push("At least one AI provider must be configured (ANTHROPIC_API_KEY, OPENAI_API_KEY, or OLLAMA_BASE_URL)");
-        }
-
-        // Check that CORS origins are configured in production
-        if self.cors_allowed_origins.is_none() {
-            errors.push("CORS_ALLOWED_ORIGINS must be set for production (comma-separated list of allowed origins)");
+        // Check CORS_ALLOWED_ORIGINS is configured
+        if self.cors_allowed_origins.is_none() || self.cors_allowed_origins.as_ref().map(|o| o.is_empty()).unwrap_or(true) {
+            errors.push("CORS_ALLOWED_ORIGINS must be configured in production".to_string());
         }
 
         if errors.is_empty() {
             Ok(())
         } else {
-            Err(anyhow::anyhow!(
-                "Production configuration validation failed:\n  - {}",
-                errors.join("\n  - ")
-            ))
+            Err(crate::error::AppError::Validation(errors.join("; ")))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+    use std::sync::Mutex;
+
+    // Mutex to ensure tests run sequentially and don't interfere with each other
+    static TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    fn clear_env_vars() {
+        env::remove_var("RUST_ENV");
+        env::remove_var("DATABASE_URL");
+        env::remove_var("JWT_SECRET");
+        env::remove_var("JWT_EXPIRY_HOURS");
+        env::remove_var("ENCRYPTION_KEY");
+        env::remove_var("MINIO_ENDPOINT");
+        env::remove_var("MINIO_ACCESS_KEY");
+        env::remove_var("MINIO_SECRET_KEY");
+        env::remove_var("MINIO_BUCKET");
+        env::remove_var("DEFAULT_AI_PROVIDER");
+        env::remove_var("ANTHROPIC_API_KEY");
+        env::remove_var("OPENAI_API_KEY");
+        env::remove_var("OLLAMA_BASE_URL");
+        env::remove_var("OLLAMA_MODEL");
+        env::remove_var("DEFAULT_STT_PROVIDER");
+        env::remove_var("DEEPGRAM_API_KEY");
+        env::remove_var("ASSEMBLYAI_API_KEY");
+        env::remove_var("ENABLE_STREAMING_TRANSCRIPTION");
+        env::remove_var("ENABLE_AI_QUALITY_SCORING");
+        env::remove_var("BACKEND_PORT");
+        env::remove_var("FRONTEND_URL");
+        env::remove_var("CORS_ALLOWED_ORIGINS");
+        env::remove_var("CANVAS_SYNC_LIMIT");
+    }
+
+    #[test]
+    fn test_config_from_env_defaults() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_env_vars();
+
+        let config = Config::from_env().unwrap();
+
+        assert_eq!(config.rust_env, "development");
+        assert_eq!(config.database_url, "postgres://quiz:quiz@localhost:5432/quiz");
+        assert_eq!(config.jwt_secret, "development-secret-change-in-production");
+        assert_eq!(config.jwt_expiry_hours, 24);
+        assert_eq!(config.encryption_key, "32-byte-secret-key-change-me!!!");
+        assert_eq!(config.minio_endpoint, "localhost:9000");
+        assert_eq!(config.minio_access_key, "minioadmin");
+        assert_eq!(config.minio_secret_key, "minioadmin");
+        assert_eq!(config.minio_bucket, "avatars");
+        assert_eq!(config.default_ai_provider, "claude");
+        assert!(config.anthropic_api_key.is_none());
+        assert!(config.openai_api_key.is_none());
+        assert_eq!(config.ollama_base_url, "http://localhost:11434");
+        assert_eq!(config.ollama_model, "llama2");
+        assert_eq!(config.default_stt_provider, "deepgram");
+        assert!(config.deepgram_api_key.is_none());
+        assert!(config.assemblyai_api_key.is_none());
+        assert!(!config.enable_streaming_transcription);
+        assert!(!config.enable_ai_quality_scoring);
+        assert_eq!(config.backend_port, 8080);
+        assert_eq!(config.frontend_url, "http://localhost:3000");
+        assert!(config.cors_allowed_origins.is_none());
+        assert_eq!(config.canvas_sync_limit, 100);
+    }
+
+    #[test]
+    fn test_config_from_env_custom_values() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_env_vars();
+
+        env::set_var("RUST_ENV", "production");
+        env::set_var("DATABASE_URL", "postgres://user:pass@host:5432/db");
+        env::set_var("JWT_SECRET", "custom-secret");
+        env::set_var("JWT_EXPIRY_HOURS", "48");
+        env::set_var("ENCRYPTION_KEY", "custom-32-byte-key-for-testing!!!");
+        env::set_var("MINIO_ENDPOINT", "minio.example.com");
+        env::set_var("DEFAULT_AI_PROVIDER", "openai");
+        env::set_var("ANTHROPIC_API_KEY", "anthropic-key");
+        env::set_var("OPENAI_API_KEY", "openai-key");
+        env::set_var("OLLAMA_BASE_URL", "http://ollama:11434");
+        env::set_var("OLLAMA_MODEL", "codellama");
+        env::set_var("DEFAULT_STT_PROVIDER", "assemblyai");
+        env::set_var("DEEPGRAM_API_KEY", "deepgram-key");
+        env::set_var("ASSEMBLYAI_API_KEY", "assemblyai-key");
+        env::set_var("ENABLE_STREAMING_TRANSCRIPTION", "true");
+        env::set_var("ENABLE_AI_QUALITY_SCORING", "true");
+        env::set_var("BACKEND_PORT", "9000");
+        env::set_var("FRONTEND_URL", "https://app.example.com");
+        env::set_var("CORS_ALLOWED_ORIGINS", "https://app.example.com,https://admin.example.com");
+        env::set_var("CANVAS_SYNC_LIMIT", "50");
+
+        let config = Config::from_env().unwrap();
+
+        assert_eq!(config.rust_env, "production");
+        assert_eq!(config.database_url, "postgres://user:pass@host:5432/db");
+        assert_eq!(config.jwt_secret, "custom-secret");
+        assert_eq!(config.jwt_expiry_hours, 48);
+        assert_eq!(config.encryption_key, "custom-32-byte-key-for-testing!!!");
+        assert_eq!(config.minio_endpoint, "minio.example.com");
+        assert_eq!(config.default_ai_provider, "openai");
+        assert_eq!(config.anthropic_api_key, Some("anthropic-key".to_string()));
+        assert_eq!(config.openai_api_key, Some("openai-key".to_string()));
+        assert_eq!(config.ollama_base_url, "http://ollama:11434");
+        assert_eq!(config.ollama_model, "codellama");
+        assert_eq!(config.default_stt_provider, "assemblyai");
+        assert_eq!(config.deepgram_api_key, Some("deepgram-key".to_string()));
+        assert_eq!(config.assemblyai_api_key, Some("assemblyai-key".to_string()));
+        assert!(config.enable_streaming_transcription);
+        assert!(config.enable_ai_quality_scoring);
+        assert_eq!(config.backend_port, 9000);
+        assert_eq!(config.frontend_url, "https://app.example.com");
+        assert_eq!(config.cors_allowed_origins, Some(vec![
+            "https://app.example.com".to_string(),
+            "https://admin.example.com".to_string()
+        ]));
+        assert_eq!(config.canvas_sync_limit, 50);
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_config_from_env_invalid_jwt_expiry() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_env_vars();
+        env::set_var("JWT_EXPIRY_HOURS", "invalid");
+
+        let config = Config::from_env().unwrap();
+        assert_eq!(config.jwt_expiry_hours, 24); // Should fall back to default
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_config_from_env_invalid_backend_port() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_env_vars();
+        env::set_var("BACKEND_PORT", "invalid");
+
+        let config = Config::from_env().unwrap();
+        assert_eq!(config.backend_port, 8080); // Should fall back to default
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_config_from_env_invalid_canvas_sync_limit() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_env_vars();
+        env::set_var("CANVAS_SYNC_LIMIT", "invalid");
+
+        let config = Config::from_env().unwrap();
+        assert_eq!(config.canvas_sync_limit, 100); // Should fall back to default
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_config_from_env_empty_api_keys() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_env_vars();
+        env::set_var("ANTHROPIC_API_KEY", "");
+        env::set_var("OPENAI_API_KEY", "");
+        env::set_var("DEEPGRAM_API_KEY", "");
+        env::set_var("ASSEMBLYAI_API_KEY", "");
+
+        let config = Config::from_env().unwrap();
+        assert!(config.anthropic_api_key.is_none());
+        assert!(config.openai_api_key.is_none());
+        assert!(config.deepgram_api_key.is_none());
+        assert!(config.assemblyai_api_key.is_none());
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_config_from_env_boolean_parsing() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_env_vars();
+
+        // Test various true values
+        env::set_var("ENABLE_STREAMING_TRANSCRIPTION", "true");
+        env::set_var("ENABLE_AI_QUALITY_SCORING", "1");
+        let config = Config::from_env().unwrap();
+        assert!(config.enable_streaming_transcription);
+        assert!(config.enable_ai_quality_scoring);
+
+        clear_env_vars();
+
+        // Test various false values
+        env::set_var("ENABLE_STREAMING_TRANSCRIPTION", "false");
+        env::set_var("ENABLE_AI_QUALITY_SCORING", "0");
+        let config = Config::from_env().unwrap();
+        assert!(!config.enable_streaming_transcription);
+        assert!(!config.enable_ai_quality_scoring);
+
+        clear_env_vars();
+
+        // Test invalid boolean values (should default to false)
+        env::set_var("ENABLE_STREAMING_TRANSCRIPTION", "maybe");
+        let config = Config::from_env().unwrap();
+        assert!(!config.enable_streaming_transcription);
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_config_is_production() {
+        let _lock = TEST_MUTEX.lock().unwrap();
+        clear_env_vars();
+
+        let mut config = Config::from_env().unwrap();
+        assert!(!config.is_production()); // Default is "development"
+
+        config.rust_env = "production".to_string();
+        assert!(config.is_production());
+
+        config.rust_env = "staging".to_string();
+        assert!(!config.is_production());
     }
 }

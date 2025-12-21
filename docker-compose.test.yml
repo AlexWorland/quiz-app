@@ -1,0 +1,101 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: quiz
+      POSTGRES_PASSWORD: quiz
+      POSTGRES_DB: quiz_test
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quiz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quiz-test-network
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-13T22-19-12Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_test_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 10s
+    networks:
+      - quiz-test-network
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/avatars --ignore-existing;
+      mc anonymous set download myminio/avatars;
+      exit 0;
+      "
+    networks:
+      - quiz-test-network
+
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    environment:
+      DATABASE_URL: postgres://quiz:quiz@postgres:5432/quiz_test
+      TEST_DATABASE_URL: postgres://quiz:quiz@postgres:5432/quiz_test
+      JWT_SECRET: test-secret
+      JWT_EXPIRY_HOURS: 24
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: avatars
+      DEFAULT_AI_PROVIDER: claude
+      DEFAULT_STT_PROVIDER: deepgram
+      RUST_LOG: info
+      ENCRYPTION_KEY: 32-byte-secret-key-change-me!!!
+      RUST_ENV: test
+      ENABLE_STREAMING_TRANSCRIPTION: "false"
+      ENABLE_AI_QUALITY_SCORING: "false"
+      CANVAS_SYNC_LIMIT: 100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - quiz-test-network
+
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.test
+    environment:
+      VITE_API_URL: http://backend-test:8080
+      VITE_WS_URL: ws://backend-test:8080
+      DOCKER_ENV: "true"
+      NODE_ENV: test
+    depends_on:
+      backend-test:
+        condition: service_started
+    networks:
+      - quiz-test-network
+
+volumes:
+  postgres_test_data:
+  minio_test_data:
+
+networks:
+  quiz-test-network:
+    name: quiz-test-network
+    driver: bridge

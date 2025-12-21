@@ -57,7 +57,7 @@ pub fn validate_token(token: &str, secret: &str) -> Result<Claims> {
 
 /// Extract bearer token from Authorization header
 pub fn extract_bearer_token(auth_header: &str) -> Option<&str> {
-    if auth_header.starts_with("Bearer ") {
+    if auth_header.starts_with("Bearer ") && auth_header.len() > 7 {
         Some(&auth_header[7..])
     } else {
         None
@@ -67,9 +67,91 @@ pub fn extract_bearer_token(auth_header: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
+    use chrono::{Duration, Utc};
 
     const TEST_SECRET: &str = "test_secret_key_for_testing_only";
+
+    #[test]
+    fn test_claims_new() {
+        let user_id = Uuid::new_v4();
+        let role = "presenter";
+        let expiry_hours = 24;
+
+        let claims = Claims::new(user_id, role, expiry_hours);
+
+        assert_eq!(claims.sub, user_id);
+        assert_eq!(claims.role, role);
+
+        // Check timestamps are reasonable
+        let now = Utc::now();
+        assert!(claims.iat <= now.timestamp());
+        assert!(claims.iat > now.timestamp() - 10); // Within last 10 seconds
+
+        // Check expiry is correct
+        let expected_exp = (now + Duration::hours(expiry_hours)).timestamp();
+        assert!((claims.exp - expected_exp).abs() <= 1); // Allow 1 second tolerance
+    }
+
+    #[test]
+    fn test_claims_new_zero_expiry() {
+        let user_id = Uuid::new_v4();
+        let claims = Claims::new(user_id, "participant", 0);
+
+        let now = Utc::now();
+        assert!(claims.exp <= now.timestamp());
+    }
+
+    #[test]
+    fn test_claims_new_negative_expiry() {
+        let user_id = Uuid::new_v4();
+        let claims = Claims::new(user_id, "participant", -1);
+
+        let now = Utc::now();
+        // Negative expiry should still set exp before iat
+        assert!(claims.exp < claims.iat);
+    }
+
+    #[test]
+    fn test_extract_bearer_token_valid() {
+        assert_eq!(
+            extract_bearer_token("Bearer token123"),
+            Some("token123")
+        );
+        assert_eq!(
+            extract_bearer_token("Bearer abc.def.ghi"),
+            Some("abc.def.ghi")
+        );
+    }
+
+    #[test]
+    fn test_extract_bearer_token_invalid() {
+        assert_eq!(extract_bearer_token(""), None);
+        assert_eq!(extract_bearer_token("token123"), None);
+        assert_eq!(extract_bearer_token("bearer token123"), None);
+        assert_eq!(extract_bearer_token("Bearer"), None);
+        assert_eq!(extract_bearer_token("Bearer "), None);
+        assert_eq!(extract_bearer_token("Basic token123"), None);
+        assert_eq!(extract_bearer_token("Bearer token with spaces"), Some("token with spaces"));
+    }
+
+    #[test]
+    fn test_extract_bearer_token_edge_cases() {
+        // Empty bearer
+        assert_eq!(extract_bearer_token("Bearer"), None);
+
+        // Only whitespace after Bearer
+        assert_eq!(extract_bearer_token("Bearer "), None);
+        assert_eq!(extract_bearer_token("Bearer\t"), None);
+        assert_eq!(extract_bearer_token("Bearer\n"), None);
+
+        // Multiple spaces
+        assert_eq!(extract_bearer_token("Bearer  token123"), Some(" token123"));
+        assert_eq!(extract_bearer_token("Bearer\t\ttoken123"), None); // Tabs don't count as space after Bearer
+
+        // Case sensitivity
+        assert_eq!(extract_bearer_token("bearer token123"), None);
+        assert_eq!(extract_bearer_token("BEARER token123"), None);
+    }
 
     #[test]
     fn test_generate_and_validate_token() {
@@ -109,15 +191,5 @@ mod tests {
 
         let result = validate_token(&token, "wrong_secret");
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_extract_bearer_token() {
-        assert_eq!(
-            extract_bearer_token("Bearer token123"),
-            Some("token123")
-        );
-        assert_eq!(extract_bearer_token("Invalid token123"), None);
-        assert_eq!(extract_bearer_token("Bearer"), None);
     }
 }

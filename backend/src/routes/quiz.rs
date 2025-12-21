@@ -10,13 +10,29 @@ use sqlx::Row;
 use crate::auth::middleware::AuthUser;
 use crate::error::{AppError, Result};
 use crate::models::*;
-use crate::models::question::LeaderboardEntry as ModelLeaderboardEntry;
+use crate::ws::LeaderboardEntry as ModelLeaderboardEntry;
+use sqlx::FromRow;
+
+#[derive(FromRow)]
+struct DbLeaderboardEntry {
+    rank: i64,
+    user_id: Uuid,
+    username: String,
+    avatar_url: Option<String>,
+    score: i32,
+}
 use crate::AppState;
 
-/// Generate a unique 6-character join code
+/// Generate a random 6-character join code
 fn generate_join_code() -> String {
-    // For testing, use a fixed code to avoid random conflicts
-    "ABC123".to_string()
+    const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = rand::thread_rng();
+    (0..6)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
 }
 
 /// List all events for the current user (both hosted and joined)
@@ -42,7 +58,6 @@ pub async fn create_quiz(
     Extension(auth_user): Extension<AuthUser>,
     Json(req): Json<CreateEventRequest>,
 ) -> Result<Json<EventResponse>> {
-    let join_code = generate_join_code();
     let mode = req.mode.unwrap_or_else(|| "listen_only".to_string());
     let num_fake_answers = req.num_fake_answers.unwrap_or(3);
     let time_per_question = req.time_per_question.unwrap_or(30);
@@ -50,6 +65,24 @@ pub async fn create_quiz(
     let question_gen_interval = req.question_gen_interval_seconds
         .unwrap_or(30)
         .clamp(10, 300);
+
+    // Generate unique join code with collision handling
+    let mut join_code = generate_join_code();
+    let mut attempts = 0;
+    while attempts < 10 {
+        let existing: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE join_code = $1",
+        )
+        .bind(&join_code)
+        .fetch_one(&state.db)
+        .await?;
+
+        if existing == 0 {
+            break;
+        }
+        join_code = generate_join_code();
+        attempts += 1;
+    }
 
     let event = sqlx::query_as::<_, Event>(
         r#"
@@ -61,7 +94,7 @@ pub async fn create_quiz(
     .bind(auth_user.id)
     .bind(&req.title)
     .bind(&req.description)
-    .bind(join_code)
+    .bind(&join_code)
     .bind(mode)
     .bind(num_fake_answers)
     .bind(time_per_question)
@@ -182,7 +215,7 @@ pub async fn add_question(
     }
 
     // Get the next order index
-    let next_index: (i64,) = sqlx::query_as(
+    let next_index: (i32,) = sqlx::query_as(
         "SELECT COALESCE(MAX(order_index), -1) + 1 FROM segments WHERE event_id = $1"
     )
     .bind(id)
@@ -200,7 +233,7 @@ pub async fn add_question(
     .bind(&req.presenter_name)
     .bind(req.presenter_user_id)
     .bind(&req.title)
-    .bind(next_index.0 as i32)
+    .bind(next_index.0)
     .fetch_one(&state.db)
     .await?;
 
@@ -274,9 +307,14 @@ pub async fn delete_question(
     .bind(segment_id)
     .bind(event_id)
     .execute(&state.db)
-    .await?;
-
-    Ok(StatusCode::NO_CONTENT)
+    .await
+    .map(|result| {
+        if result.rows_affected() == 0 {
+            Err(AppError::NotFound("Segment not found".to_string()))
+        } else {
+            Ok(StatusCode::NO_CONTENT)
+        }
+    })?
 }
 
 /// Get event by join code
@@ -663,9 +701,9 @@ pub async fn get_master_leaderboard(
     State(state): State<AppState>,
     Path(event_id): Path<Uuid>,
 ) -> Result<Json<Vec<ModelLeaderboardEntry>>> {
-    let rankings = sqlx::query_as::<_, ModelLeaderboardEntry>(
+    let db_rankings = sqlx::query_as::<_, DbLeaderboardEntry>(
         r#"
-        SELECT 
+        SELECT
             ROW_NUMBER() OVER (ORDER BY ep.total_score DESC) as rank,
             ep.user_id,
             u.username,
@@ -681,6 +719,16 @@ pub async fn get_master_leaderboard(
     .fetch_all(&state.db)
     .await?;
 
+    let rankings: Vec<ModelLeaderboardEntry> = db_rankings.into_iter()
+        .map(|entry| ModelLeaderboardEntry {
+            rank: entry.rank as i32,
+            user_id: entry.user_id,
+            username: entry.username,
+            avatar_url: entry.avatar_url,
+            score: entry.score,
+        })
+        .collect();
+
     Ok(Json(rankings))
 }
 
@@ -689,9 +737,9 @@ pub async fn get_segment_leaderboard(
     State(state): State<AppState>,
     Path(segment_id): Path<Uuid>,
 ) -> Result<Json<Vec<ModelLeaderboardEntry>>> {
-    let rankings = sqlx::query_as::<_, ModelLeaderboardEntry>(
+    let db_rankings = sqlx::query_as::<_, DbLeaderboardEntry>(
         r#"
-        SELECT 
+        SELECT
             ROW_NUMBER() OVER (ORDER BY ss.score DESC) as rank,
             ss.user_id,
             u.username,
@@ -706,6 +754,16 @@ pub async fn get_segment_leaderboard(
     .bind(segment_id)
     .fetch_all(&state.db)
     .await?;
+
+    let rankings: Vec<ModelLeaderboardEntry> = db_rankings.into_iter()
+        .map(|entry| ModelLeaderboardEntry {
+            rank: entry.rank as i32,
+            user_id: entry.user_id,
+            username: entry.username,
+            avatar_url: entry.avatar_url,
+            score: entry.score,
+        })
+        .collect();
 
     Ok(Json(rankings))
 }

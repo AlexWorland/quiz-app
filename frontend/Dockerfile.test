@@ -1,0 +1,17 @@
+# Test Dockerfile for React Frontend (Playwright-enabled)
+FROM node:20-bullseye
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json* ./
+
+RUN npm ci --legacy-peer-deps
+RUN npx playwright install --with-deps chromium
+
+COPY . .
+
+CMD ["npm", "test", "--", "--run"]

@@ -1,9 +1,39 @@
-use sqlx::PgPool;
+use sqlx::{Connection, PgConnection, PgPool};
 use crate::config::Config;
+
+async fn ensure_test_database(url: &str) {
+    let (base, db_with_params) = url.rsplit_once('/').unwrap_or((url, "quiz_test"));
+    let db_name = db_with_params
+        .split('?')
+        .next()
+        .unwrap_or(db_with_params);
+    let admin_url = format!("{}/postgres", base);
+
+    let mut conn = PgConnection::connect(&admin_url)
+        .await
+        .expect("Failed to connect to admin database");
+
+    let exists: Option<i32> =
+        sqlx::query_scalar::<_, i32>("SELECT 1 FROM pg_database WHERE datname = $1")
+        .bind(db_name)
+        .fetch_optional(&mut conn)
+        .await
+        .expect("Failed to check test database existence");
+
+    if exists.is_none() {
+        let escaped_name = db_name.replace('"', "\"\"");
+        let create_stmt = format!("CREATE DATABASE \"{}\"", escaped_name);
+        sqlx::query(&create_stmt)
+            .execute(&mut conn)
+            .await
+            .expect("Failed to create test database");
+    }
+}
 
 pub async fn setup_test_db() -> PgPool {
     let url = std::env::var("TEST_DATABASE_URL")
         .unwrap_or_else(|_| "postgres://quiz:quiz@localhost:5432/quiz_test".to_string());
+    ensure_test_database(&url).await;
     let pool = PgPool::connect(&url).await.expect("Failed to connect to test database");
     sqlx::migrate!().run(&pool).await.expect("Failed to run migrations");
     pool

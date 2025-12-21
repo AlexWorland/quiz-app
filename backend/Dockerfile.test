@@ -1,0 +1,14 @@
+# Test Dockerfile for Rust Backend
+FROM rust:latest
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+
+CMD ["cargo", "test"]

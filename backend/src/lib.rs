@@ -96,17 +96,20 @@ pub fn create_app(state: AppState) -> Router {
 
     let upload_routes = Router::new()
         .route("/api/upload/avatar", post(routes::upload::upload_avatar))
+        .layer(auth_layer.clone());
+
+    let protected_auth_routes = Router::new()
+        .route("/api/auth/me", get(routes::auth::me))
+        .route("/api/auth/profile", put(routes::auth::update_profile))
         .layer(auth_layer);
 
     Router::new()
         // Health check
         .route("/api/health", get(routes::health::health_check))
 
-        // Authentication routes
+        // Public authentication routes
         .route("/api/auth/register", post(routes::auth::register))
         .route("/api/auth/login", post(routes::auth::login))
-        .route("/api/auth/me", get(routes::auth::me))
-        .route("/api/auth/profile", put(routes::auth::update_profile))
 
         // Event routes (new API)
         .route("/api/events/join/:code", get(routes::quiz::get_event_by_code))
@@ -127,6 +130,7 @@ pub fn create_app(state: AppState) -> Router {
         .merge(recording_routes)
         .merge(settings_routes)
         .merge(upload_routes)
+        .merge(protected_auth_routes)
 
         // Add middleware
         .layer(TraceLayer::new_for_http())

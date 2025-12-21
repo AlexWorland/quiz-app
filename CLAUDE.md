@@ -24,10 +24,10 @@ docker-compose up -d postgres minio minio-init
 cargo run
 
 # Run tests
-cargo test
+docker compose -f docker-compose.test.yml run --rm --build -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend-test cargo test
 
 # Run specific test
-cargo test test_name
+docker compose -f docker-compose.test.yml run --rm --build -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend-test cargo test test_name
 
 # Check code without building
 cargo check
@@ -241,17 +241,18 @@ docker-compose down -v
 ### Rust Tests
 
 - Unit tests in same file with `#[cfg(test)]` modules
-- Run all: `cargo test`
-- Run specific: `cargo test test_name -- --nocapture`
+- Tests must use the test Docker files (`docker-compose.test.yml`, `backend/Dockerfile.test`, `frontend/Dockerfile.test`), not the production or dev Dockerfiles.
+- Run all: `docker compose -f docker-compose.test.yml run --rm --build -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend-test cargo test`
+- Run specific: `docker compose -f docker-compose.test.yml run --rm --build -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend-test cargo test test_name -- --nocapture`
 - Focus on services and critical business logic
 
 ### Frontend Unit Tests (Vitest)
 
 ```bash
 cd frontend           # Required - tests must run from frontend directory
-npm test              # Run all unit tests
-npm run test:watch    # Watch mode
-npm run test:coverage # With coverage report
+docker compose -f docker-compose.test.yml run --rm --build frontend-test npm test -- --run
+docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:watch
+docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:coverage
 ```
 
 **Test files** in `__tests__/` directories:
@@ -266,9 +267,9 @@ npm run test:coverage # With coverage report
 
 ```bash
 cd frontend               # Required - tests must run from frontend directory
-npm run test:e2e          # Run all E2E tests (headless)
-npm run test:e2e:ui       # Open Playwright UI for debugging
-npm run test:e2e:headed   # Run with visible browser
+docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:e2e
+docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:e2e:ui
+docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:e2e:headed
 ```
 
 **Test files** in `e2e/`:

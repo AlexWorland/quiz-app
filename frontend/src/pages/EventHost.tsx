@@ -11,6 +11,7 @@ import { SegmentCompleteView } from '@/components/quiz/SegmentCompleteView'
 import { RecordingControls } from '@/components/recording/RecordingControls'
 import { RecordingStatus } from '@/components/recording/RecordingStatus'
 import { TranscriptView } from '@/components/recording/TranscriptView'
+import { AudioFormatNotice } from '@/components/recording/AudioFormatNotice'
 import { GeneratedQuestionList } from '@/components/questions/GeneratedQuestionList'
 import { QuizReadyIndicator } from '@/components/questions/QuizReadyIndicator'
 import { QuestionEditor } from '@/components/questions/QuestionEditor'
@@ -398,17 +399,7 @@ export function EventHostPage() {
           <div className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr] gap-6">
             <div className="bg-dark-900 rounded-lg p-6 border border-dark-700 space-y-4">
               <h2 className="text-lg font-semibold text-white mb-2">Recording Status</h2>
-              {/* Audio capability warnings */}
-              {audioError && (
-                <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm mb-4">
-                  ⚠️ {audioError}
-                </div>
-              )}
-              {audioCapabilities && !audioCapabilities.isOptimal && audioCapabilities.warning && (
-                <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-3 text-yellow-400 text-sm mb-4">
-                  ⚠️ {audioCapabilities.warning}
-                </div>
-              )}
+              <AudioFormatNotice capabilities={audioCapabilities} error={audioError} />
               <RecordingStatus status={segment.status} startedAt={segment.recording_started_at} />
               <RecordingControls
                 status={segment.status}

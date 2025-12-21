@@ -133,21 +133,78 @@ pub async fn update_profile(
     Extension(auth_user): Extension<AuthUser>,
     Json(req): Json<UpdateProfileRequest>,
 ) -> Result<Json<UserResponse>> {
+    // Validate username if provided
+    if let Some(ref username) = req.username {
+        let trimmed = username.trim();
+        if trimmed.len() < 3 {
+            return Err(AppError::Validation(
+                "Username must be at least 3 characters".to_string(),
+            ));
+        }
+        if trimmed.len() > 50 {
+            return Err(AppError::Validation(
+                "Username must be 50 characters or fewer".to_string(),
+            ));
+        }
+
+        // Check uniqueness against other users
+        let existing = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM users WHERE username = $1 AND id != $2",
+        )
+        .bind(trimmed)
+        .bind(auth_user.id)
+        .fetch_one(&state.db)
+        .await?;
+
+        if existing > 0 {
+            return Err(AppError::Conflict("Username already taken".to_string()));
+        }
+    }
+
+    // Validate avatar url/type if provided
+    if let Some(ref avatar_url) = req.avatar_url {
+        if avatar_url.len() > 500 {
+            return Err(AppError::Validation(
+                "Avatar URL must be 500 characters or fewer".to_string(),
+            ));
+        }
+    }
+
+    if let Some(ref avatar_type) = req.avatar_type {
+        let allowed = ["emoji", "preset", "custom"];
+        if !allowed.contains(&avatar_type.as_str()) {
+            return Err(AppError::Validation(
+                "avatar_type must be one of: emoji, preset, custom".to_string(),
+            ));
+        }
+    }
+
+    // Get current user to preserve values for fields not being updated
+    let current_user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(auth_user.id)
+        .fetch_one(&state.db)
+        .await?;
+
+    // Prepare values: use provided values or keep current
+    let username_to_set = req.username.as_ref().map(|u| u.trim().to_string()).unwrap_or_else(|| current_user.username.clone());
+    let avatar_url_to_set: Option<String> = req.avatar_url.clone().or_else(|| current_user.avatar_url.clone());
+    let avatar_type_to_set: Option<String> = req.avatar_type.clone().or_else(|| current_user.avatar_type.clone());
+
     let user = sqlx::query_as::<_, User>(
         r#"
         UPDATE users
-        SET username = COALESCE($2, username),
-            avatar_url = COALESCE($3, avatar_url),
-            avatar_type = COALESCE($4, avatar_type),
+        SET username = $2,
+            avatar_url = $3,
+            avatar_type = $4,
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
         "#,
     )
     .bind(auth_user.id)
-    .bind(&req.username)
-    .bind(&req.avatar_url)
-    .bind(&req.avatar_type)
+    .bind(&username_to_set)
+    .bind(&avatar_url_to_set)
+    .bind(&avatar_type_to_set)
     .fetch_one(&state.db)
     .await?;
 

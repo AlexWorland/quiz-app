@@ -87,3 +87,9 @@ docker compose exec postgres psql -U quiz -c "DROP DATABASE IF EXISTS quiz_test;
 docker compose exec postgres psql -U quiz -c "CREATE DATABASE quiz_test;"
 docker compose run --rm -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend cargo test
 ```
+
+Or use the helper script (handles drop/create before tests and drop after tests):
+
+```bash
+./scripts/run-backend-tests.sh
+```
