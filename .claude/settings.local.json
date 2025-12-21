@@ -55,7 +55,9 @@
       "Bash(if [ -f /tmp/test_output.log ])",
       "Bash(then wc -l /tmp/test_output.log)",
       "Bash(else echo \"Log file not found\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(wc:*)",
+      "WebFetch(domain:github.com)"
     ]
   },
   "outputStyle": "Explanatory"
