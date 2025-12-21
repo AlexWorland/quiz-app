@@ -51,13 +51,14 @@ pub async fn register(
 
     let user = sqlx::query_as::<_, User>(
         r#"
-        INSERT INTO users (id, username, email, password_hash, role, avatar_url, avatar_type)
-        VALUES ($1, $2, $3, $4, 'participant', $5, $6)
+        INSERT INTO users (id, username, display_name, email, password_hash, role, avatar_url, avatar_type)
+        VALUES ($1, $2, $3, $4, $5, 'participant', $6, $7)
         RETURNING *
         "#,
     )
     .bind(user_id)
     .bind(&req.username)
+    .bind(&req.username) // Use username as display_name initially
     .bind(format!("{}@quizapp.local", req.username)) // Generate email from username
     .bind(&password_hash)
     .bind(&req.avatar_url)
@@ -187,6 +188,7 @@ pub async fn update_profile(
 
     // Prepare values: use provided values or keep current
     let username_to_set = req.username.as_ref().map(|u| u.trim().to_string()).unwrap_or_else(|| current_user.username.clone());
+    let display_name_to_set = req.display_name.as_ref().map(|d| d.trim().to_string()).unwrap_or_else(|| current_user.display_name.clone());
     let avatar_url_to_set: Option<String> = req.avatar_url.clone().or_else(|| current_user.avatar_url.clone());
     let avatar_type_to_set: Option<String> = req.avatar_type.clone().or_else(|| current_user.avatar_type.clone());
 
@@ -194,8 +196,9 @@ pub async fn update_profile(
         r#"
         UPDATE users
         SET username = $2,
-            avatar_url = $3,
-            avatar_type = $4,
+            display_name = $3,
+            avatar_url = $4,
+            avatar_type = $5,
             updated_at = NOW()
         WHERE id = $1
         RETURNING *
@@ -203,6 +206,7 @@ pub async fn update_profile(
     )
     .bind(auth_user.id)
     .bind(&username_to_set)
+    .bind(&display_name_to_set)
     .bind(&avatar_url_to_set)
     .bind(&avatar_type_to_set)
     .fetch_one(&state.db)

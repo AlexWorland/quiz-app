@@ -6,6 +6,7 @@ use quiz_backend::ws::hub::Hub;
 use quiz_backend::models::{User, Event, Segment, Question};
 use quiz_backend::auth::jwt::generate_token;
 use uuid::Uuid;
+use sqlx::Row;
 
 /// Create a test user with a JWT token
 pub async fn create_test_user_with_token(
@@ -13,29 +14,29 @@ pub async fn create_test_user_with_token(
     config: &quiz_backend::config::Config,
     username: Option<&str>,
 ) -> (User, String) {
-    let username = username.map(|s| s.to_string()).unwrap_or_else(|| {
+    // Generate unique username for authentication (must be unique)
+    let unique_username = username.map(|s| s.to_string()).unwrap_or_else(|| {
         format!("testuser_{}", Uuid::new_v4().to_string().split('-').next().unwrap())
     });
+    // Make username unique by appending UUID if not provided
+    let unique_username = format!("{}_{}", unique_username, Uuid::new_v4().to_string().split('-').next().unwrap());
     
-    // Make sure username is unique even if provided
-    let unique_username = if username.starts_with("user") {
-        format!("{}_{}", username, Uuid::new_v4().to_string().split('-').next().unwrap())
-    } else {
-        username
-    };
+    // Display name can be the original username (non-unique)
+    let display_name = username.unwrap_or("Test User").to_string();
 
     let user_id = Uuid::new_v4();
     let password_hash = "$argon2id$v=19$m=19456,t=2,p=1$test_salt$test_hash"; // Dummy hash for testing
 
     let user = sqlx::query_as::<_, User>(
         r#"
-        INSERT INTO users (id, username, email, password_hash, role, avatar_url, avatar_type)
-        VALUES ($1, $2, $3, $4, 'participant', $5, $6)
+        INSERT INTO users (id, username, display_name, email, password_hash, role, avatar_url, avatar_type)
+        VALUES ($1, $2, $3, $4, $5, 'participant', $6, $7)
         RETURNING *
         "#,
     )
     .bind(user_id)
     .bind(unique_username.as_str())
+    .bind(display_name.as_str())
     .bind(format!("{}@quizapp.local", unique_username))
     .bind(password_hash)
     .bind(Some("😀"))
@@ -189,4 +190,77 @@ pub async fn create_test_server_with_user() -> (TestServer, AppState, User, Stri
     let app = create_app(state.clone());
     let server = TestServer::new(app).expect("Failed to create test server");
     (server, state, user, token)
+}
+
+/// Create a test canvas stroke in the database
+pub async fn create_test_canvas_stroke_db(
+    pool: &sqlx::PgPool,
+    event_id: Uuid,
+    user_id: Uuid,
+) -> serde_json::Value {
+    let stroke_data = serde_json::json!({
+        "type": "stroke",
+        "points": [[0, 0], [10, 10], [20, 20]]
+    });
+
+    sqlx::query(
+        "INSERT INTO canvas_strokes (event_id, user_id, stroke_data) VALUES ($1, $2, $3) RETURNING stroke_data"
+    )
+    .bind(event_id)
+    .bind(user_id)
+    .bind(&stroke_data)
+    .fetch_one(pool)
+    .await
+    .expect("Failed to create canvas stroke")
+    .try_get::<serde_json::Value, _>("stroke_data")
+    .expect("Failed to get stroke_data")
+}
+
+/// Create test scores for leaderboard testing
+/// For segment leaderboard: use segment_scores table
+/// For master leaderboard: use event_participants table
+pub async fn create_test_scores(
+    pool: &sqlx::PgPool,
+    segment_id: Uuid,
+    event_id: Uuid,
+    user_scores: Vec<(Uuid, i32)>,
+) {
+    for (user_id, score) in user_scores {
+        // Insert into segment_scores for segment leaderboard
+        sqlx::query(
+            "INSERT INTO segment_scores (segment_id, user_id, score) VALUES ($1, $2, $3) ON CONFLICT (segment_id, user_id) DO UPDATE SET score = $3"
+        )
+        .bind(segment_id)
+        .bind(user_id)
+        .bind(score)
+        .execute(pool)
+        .await
+        .expect(&format!("Failed to create segment score for user {}", user_id));
+        
+        // Also update event_participants for master leaderboard
+        sqlx::query(
+            "INSERT INTO event_participants (event_id, user_id, total_score) VALUES ($1, $2, $3) ON CONFLICT (event_id, user_id) DO UPDATE SET total_score = $3"
+        )
+        .bind(event_id)
+        .bind(user_id)
+        .bind(score)
+        .execute(pool)
+        .await
+        .expect(&format!("Failed to create event score for user {}", user_id));
+    }
+}
+
+/// Wait for a broadcast message with timeout
+pub async fn wait_for_broadcast(
+    mut rx: tokio::sync::broadcast::Receiver<serde_json::Value>,
+    timeout_ms: u64,
+) -> Option<serde_json::Value> {
+    tokio::select! {
+        result = rx.recv() => {
+            result.ok()
+        }
+        _ = tokio::time::sleep(tokio::time::Duration::from_millis(timeout_ms)) => {
+            None
+        }
+    }
 }

@@ -823,3 +823,156 @@ impl AIProvider for OllamaProvider {
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::{MockServer, Mock, ResponseTemplate};
+    use wiremock::matchers::{method, path};
+
+    // ClaudeProvider Tests
+    #[tokio::test]
+    async fn test_claude_short_transcript_returns_none() {
+        let provider = ClaudeProvider::new("test-key".to_string());
+        let result = provider
+            .analyze_and_generate_question("", "short", &[], 3)
+            .await
+            .unwrap();
+        assert!(result.is_none(), "Short transcript should return None");
+    }
+
+    // OpenAIProvider Tests
+    #[tokio::test]
+    async fn test_openai_short_transcript_returns_none() {
+        let provider = OpenAIProvider::new("test-key".to_string());
+        let result = provider
+            .analyze_and_generate_question("", "short", &[], 3)
+            .await
+            .unwrap();
+        assert!(result.is_none(), "Short transcript should return None");
+    }
+
+    // OllamaProvider Tests
+    #[tokio::test]
+    async fn test_ollama_generate_fake_answers_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/generate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "response": "Fake answer 1\nFake answer 2\nFake answer 3"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let provider = OllamaProvider::new(mock_server.uri(), "test-model".to_string());
+        let result = provider
+            .generate_fake_answers("What is 2+2?", "4", 3)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 3);
+        assert!(result[0].contains("Fake answer"));
+    }
+
+    #[tokio::test]
+    async fn test_ollama_connection_error_handling() {
+        let provider = OllamaProvider::new("http://localhost:99999".to_string(), "test-model".to_string());
+        let result = provider
+            .generate_fake_answers("Test", "Answer", 3)
+            .await;
+
+        assert!(result.is_err(), "Connection error should return error");
+    }
+
+    #[tokio::test]
+    async fn test_ollama_custom_model_configuration() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/generate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "response": "Answer"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let provider = OllamaProvider::new(mock_server.uri(), "custom-model".to_string());
+        let result = provider
+            .generate_fake_answers("Test", "Answer", 1)
+            .await
+            .unwrap();
+
+        assert!(!result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_ollama_response_field_parsing() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/generate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "response": "Line 1\nLine 2\nLine 3\n"
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let provider = OllamaProvider::new(mock_server.uri(), "test-model".to_string());
+        let result = provider
+            .generate_fake_answers("Test", "Answer", 3)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0], "Line 1");
+        assert_eq!(result[1], "Line 2");
+        assert_eq!(result[2], "Line 3");
+    }
+
+    #[tokio::test]
+    async fn test_ollama_evaluate_quality_fallback() {
+        let provider = OllamaProvider::new("http://localhost:99999".to_string(), "test-model".to_string());
+        let result = provider
+            .evaluate_question_quality("Test", "Answer", "Context")
+            .await
+            .unwrap();
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_ollama_short_transcript_returns_none() {
+        let provider = OllamaProvider::new("http://localhost:11434".to_string(), "test".to_string());
+        let result = provider
+            .analyze_and_generate_question("", "short", &[], 3)
+            .await
+            .unwrap();
+        assert!(result.is_none(), "Short transcript should return None");
+    }
+
+    #[tokio::test]
+    async fn test_ollama_analyze_and_generate_question_success() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/generate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "response": r#"{"question": "What is the test?", "correct_answer": "Answer", "topic_summary": "Test", "fake_answers": ["Fake1", "Fake2", "Fake3"]}"#
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let provider = OllamaProvider::new(mock_server.uri(), "test-model".to_string());
+        let result = provider
+            .analyze_and_generate_question("Context", "This is a longer transcript that should generate a question", &[], 3)
+            .await
+            .unwrap();
+
+        assert!(result.is_some());
+        let question = result.unwrap();
+        assert_eq!(question.question, "What is the test?");
+        assert_eq!(question.correct_answer, "Answer");
+        assert_eq!(question.fake_answers.len(), 3);
+    }
+}

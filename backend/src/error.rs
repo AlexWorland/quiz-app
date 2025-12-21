@@ -53,7 +53,13 @@ impl IntoResponse for AppError {
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             AppError::Database(e) => {
                 tracing::error!("Database error: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Database error".to_string())
+                // In test mode, include more details for debugging
+                let error_msg = if std::env::var("RUST_ENV").unwrap_or_default() == "test" {
+                    format!("Database error: {}", e)
+                } else {
+                    "Database error".to_string()
+                };
+                (StatusCode::INTERNAL_SERVER_ERROR, error_msg)
             }
             AppError::Jwt(e) => {
                 tracing::error!("JWT error: {:?}", e);

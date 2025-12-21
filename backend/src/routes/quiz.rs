@@ -833,7 +833,7 @@ pub async fn create_question_for_segment(
     Path(segment_id): Path<Uuid>,
     Extension(auth_user): Extension<AuthUser>,
     Json(req): Json<crate::models::CreateQuestionRequest>,
-) -> Result<Json<crate::models::QuestionResponse>> {
+) -> Result<(axum::http::StatusCode, Json<crate::models::QuestionResponse>)> {
     use crate::models::Question;
 
     // Get segment and verify ownership
@@ -861,13 +861,13 @@ pub async fn create_question_for_segment(
     let order_index = match req.order_index {
         Some(idx) => idx,
         None => {
-            let result: (i64,) = sqlx::query_as(
-                "SELECT COALESCE(MAX(order_index), -1) + 1 FROM questions WHERE segment_id = $1"
+            let result: (i32,) = sqlx::query_as(
+                "SELECT COALESCE(MAX(order_index), -1)::INT4 + 1 FROM questions WHERE segment_id = $1"
             )
             .bind(segment_id)
             .fetch_one(&state.db)
             .await?;
-            result.0 as i32
+            result.0
         }
     };
 
@@ -885,7 +885,7 @@ pub async fn create_question_for_segment(
     .fetch_one(&state.db)
     .await?;
 
-    Ok(Json(question.into()))
+    Ok((axum::http::StatusCode::CREATED, axum::Json(question.into())))
 }
 
 /// Bulk import pre-written questions for a segment (Traditional Mode)
@@ -920,13 +920,13 @@ pub async fn bulk_import_questions(
     }
 
     // Get current max order index
-    let max_index_result: (i64,) = sqlx::query_as(
-        "SELECT COALESCE(MAX(order_index), -1) FROM questions WHERE segment_id = $1"
+    let max_index_result: (i32,) = sqlx::query_as(
+        "SELECT COALESCE(MAX(order_index), -1)::INT4 FROM questions WHERE segment_id = $1"
     )
     .bind(segment_id)
     .fetch_one(&state.db)
     .await?;
-    let mut current_index = max_index_result.0 as i32 + 1;
+    let mut current_index = max_index_result.0 + 1;
 
     let mut imported_questions = Vec::new();
     let mut failed_count = 0;

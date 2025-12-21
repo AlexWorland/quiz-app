@@ -65,3 +65,4 @@ aws-smithy-runtime-api = "1"
 [dev-dependencies]
 tokio-test = "0.4"
 axum-test = "14"
+wiremock = "0.5"

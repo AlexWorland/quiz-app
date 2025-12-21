@@ -53,6 +53,7 @@ impl ToString for AvatarType {
 pub struct User {
     pub id: Uuid,
     pub username: String,
+    pub display_name: String,
     pub email: String,
     #[serde(skip_serializing)]
     pub password_hash: String,
@@ -68,6 +69,7 @@ pub struct User {
 pub struct UserResponse {
     pub id: Uuid,
     pub username: String,
+    pub display_name: String,
     pub email: String,
     pub role: String,
     pub avatar_url: Option<String>,
@@ -79,6 +81,7 @@ impl From<User> for UserResponse {
         Self {
             id: user.id,
             username: user.username,
+            display_name: user.display_name,
             email: user.email,
             role: user.role,
             avatar_url: user.avatar_url,
@@ -114,6 +117,7 @@ pub struct AuthResponse {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UpdateProfileRequest {
     pub username: Option<String>,
+    pub display_name: Option<String>,
     pub avatar_url: Option<String>,
     pub avatar_type: Option<String>,
 }
@@ -157,6 +161,7 @@ mod tests {
         let user = User {
             id: Uuid::new_v4(),
             username: "testuser".to_string(),
+            display_name: "Test User".to_string(),
             email: "test@example.com".to_string(),
             password_hash: "hashed_password".to_string(),
             role: "presenter".to_string(),
@@ -171,6 +176,7 @@ mod tests {
 
         assert_eq!(response.id, user_clone.id);
         assert_eq!(response.username, user_clone.username);
+        assert_eq!(response.display_name, user_clone.display_name);
         assert_eq!(response.email, user_clone.email);
         assert_eq!(response.role, user_clone.role);
         assert_eq!(response.avatar_url, user_clone.avatar_url);
@@ -182,6 +188,7 @@ mod tests {
         let user = User {
             id: Uuid::new_v4(),
             username: "testuser".to_string(),
+            display_name: "Test User".to_string(),
             email: "test@example.com".to_string(),
             password_hash: "sensitive_hash_data".to_string(),
             role: "participant".to_string(),
@@ -206,6 +213,7 @@ mod tests {
         let user = User {
             id: Uuid::new_v4(),
             username: "testuser".to_string(),
+            display_name: "Test User".to_string(),
             email: "test@example.com".to_string(),
             password_hash: "hash".to_string(),
             role: "participant".to_string(),
@@ -255,6 +263,7 @@ mod tests {
     fn test_update_profile_request_validation() {
         let update_request = UpdateProfileRequest {
             username: Some("newusername".to_string()),
+            display_name: Some("New Display Name".to_string()),
             avatar_url: Some("https://example.com/new-avatar.jpg".to_string()),
             avatar_type: Some("emoji".to_string()),
         };
@@ -270,6 +279,7 @@ mod tests {
     fn test_update_profile_request_partial() {
         let partial_update = UpdateProfileRequest {
             username: Some("newname".to_string()),
+            display_name: None,
             avatar_url: None,
             avatar_type: None,
         };
@@ -286,6 +296,7 @@ mod tests {
         let user_response = UserResponse {
             id: Uuid::new_v4(),
             username: "testuser".to_string(),
+            display_name: "Test User".to_string(),
             email: "test@example.com".to_string(),
             role: "presenter".to_string(),
             avatar_url: Some("https://example.com/avatar.jpg".to_string()),
