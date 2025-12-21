@@ -5,6 +5,9 @@
 
 set -euo pipefail
 
+# Add PostgreSQL to PATH
+export PATH="/opt/homebrew/opt/postgresql@15/bin:/usr/local/opt/postgresql@15/bin:$PATH"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

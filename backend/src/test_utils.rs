@@ -23,10 +23,16 @@ async fn ensure_test_database(url: &str) {
     if exists.is_none() {
         let escaped_name = db_name.replace('"', "\"\"");
         let create_stmt = format!("CREATE DATABASE \"{}\"", escaped_name);
-        sqlx::query(&create_stmt)
+        match sqlx::query(&create_stmt)
             .execute(&mut conn)
             .await
-            .expect("Failed to create test database");
+        {
+            Ok(_) => {},
+            Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
+                // Database already exists (race condition), that's fine
+            },
+            Err(e) => panic!("Failed to create test database: {}", e),
+        }
     }
 }
 

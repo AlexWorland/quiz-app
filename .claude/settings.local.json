@@ -57,7 +57,23 @@
       "Bash(else echo \"Log file not found\")",
       "Bash(fi)",
       "Bash(wc:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(rustc:*)",
+      "Bash(npm:*)",
+      "Bash(psql:*)",
+      "Bash(brew list:*)",
+      "Bash(pg_isready:*)",
+      "Bash(minio --version:*)",
+      "Bash(brew services:*)",
+      "Bash(brew info:*)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/psql:*)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/pg_isready:*)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/createdb:*)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/createuser quiz)",
+      "Bash(~/.zshrc)",
+      "Bash(./scripts/run-backend-tests-local.sh:*)",
+      "Bash(./scripts/run-frontend-tests-local.sh:*)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/dropdb:*)"
     ]
   },
   "outputStyle": "Explanatory"

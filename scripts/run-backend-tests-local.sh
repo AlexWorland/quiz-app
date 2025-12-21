@@ -17,6 +17,9 @@ TEST_DB_URL="${TEST_DATABASE_URL:-postgres://quiz:quiz@localhost:5432/quiz_test}
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="${ROOT_DIR}/backend"
 
+# Add PostgreSQL to PATH if not already there
+export PATH="/opt/homebrew/opt/postgresql@15/bin:/usr/local/opt/postgresql@15/bin:$PATH"
+
 # Functions
 print_info() {
     echo -e "${BLUE}ℹ${NC} $1"
@@ -271,10 +274,19 @@ main() {
             print_error "PostgreSQL check failed. Cannot run integration tests."
             exit 1
         fi
-        
+
         if ! ensure_test_database; then
             print_error "Test database setup failed. Cannot run integration tests."
             exit 1
+        fi
+
+        # Run migrations on test database
+        print_info "Running migrations on test database..."
+        export DATABASE_URL="$TEST_DB_URL"
+        cd "$BACKEND_DIR"
+        if ! sqlx migrate run >/dev/null 2>&1; then
+            print_warning "Migrations may have already been run or sqlx-cli not installed"
+            print_info "To install sqlx-cli: cargo install sqlx-cli --no-default-features --features postgres"
         fi
     fi
     
