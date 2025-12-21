@@ -30,7 +30,7 @@ find_available_port() {
 }
 
 # Determine backend port
-if [ -z "$BACKEND_URL" ]; then
+if [ -z "${BACKEND_URL:-}" ]; then
     BACKEND_PORT=$(find_available_port 8080)
     BACKEND_URL="http://localhost:$BACKEND_PORT"
     if [ "$BACKEND_PORT" != "8080" ]; then
@@ -42,7 +42,7 @@ else
 fi
 
 # Determine frontend port
-if [ -z "$FRONTEND_URL" ]; then
+if [ -z "${FRONTEND_URL:-}" ]; then
     FRONTEND_PORT=$(find_available_port 5173)
     FRONTEND_URL="http://localhost:$FRONTEND_PORT"
     if [ "$FRONTEND_PORT" != "5173" ]; then
@@ -56,7 +56,8 @@ fi
 BACKEND_HEALTH_ENDPOINT="${BACKEND_URL}/api/health"
 
 # Export for Playwright and backend to use
-export VITE_API_URL="${VITE_API_URL:-${BACKEND_URL}/api}"
+# Note: Don't include /api suffix - the frontend client adds it automatically
+export VITE_API_URL="${VITE_API_URL:-${BACKEND_URL}}"
 export BACKEND_PORT="$BACKEND_PORT"
 
 # Process IDs for cleanup

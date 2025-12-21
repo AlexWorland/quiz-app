@@ -3,9 +3,13 @@ import type { Page } from '@playwright/test';
 /**
  * API helper fixtures for E2E tests
  * Provides helpers for API interactions and backend state
+ *
+ * Note: VITE_API_URL should be just the base URL (e.g., http://localhost:8080)
+ * We append /api here for direct API calls
  */
 
-const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:8080/api';
+const BASE_URL = process.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = `${BASE_URL}/api`;
 
 /**
  * Make API request from test context
@@ -93,13 +97,12 @@ export async function deleteEvent(page: Page, eventId: string): Promise<void> {
 
 /**
  * Check if backend is available
- * Uses the correct port (8080) - API_BASE_URL already includes /api
+ * Checks the health endpoint to verify backend is reachable
  */
 export async function isBackendAvailable(page: Page): Promise<boolean> {
   try {
     // Try health endpoint first (doesn't require auth)
-    // API_BASE_URL is already http://localhost:8080/api, so health is at /health
-    const healthUrl = API_BASE_URL.replace('/api', '') + '/api/health';
+    const healthUrl = `${BASE_URL}/api/health`;
     try {
       const response = await page.request.fetch(healthUrl, {
         method: 'GET',
@@ -114,9 +117,9 @@ export async function isBackendAvailable(page: Page): Promise<boolean> {
       }
       // Other errors (like timeout) - try auth endpoint
     }
-    
+
     // Fallback: try auth endpoint (will return 401 if backend is up)
-    const authUrl = API_BASE_URL.replace('/api', '') + '/api/auth/me';
+    const authUrl = `${BASE_URL}/api/auth/me`;
     try {
       const response = await page.request.fetch(authUrl, {
         method: 'GET',
