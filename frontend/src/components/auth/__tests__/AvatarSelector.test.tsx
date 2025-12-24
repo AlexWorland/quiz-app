@@ -3,12 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AvatarSelector } from '../AvatarSelector';
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Upload: () => <div data-testid="upload-icon">Upload</div>,
-  Loader: () => <div data-testid="loader-icon">Loader</div>,
-}));
-
 describe('AvatarSelector', () => {
   const mockOnSelect = vi.fn();
   const originalFetch = global.fetch;

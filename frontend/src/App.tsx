@@ -46,13 +46,10 @@ function App() {
           }
         />
 
+        {/* Public route - anonymous participants can join via QR code/join code */}
         <Route
           path="/join"
-          element={
-            <ProtectedRoute>
-              <JoinEvent />
-            </ProtectedRoute>
-          }
+          element={<JoinEvent />}
         />
 
         <Route

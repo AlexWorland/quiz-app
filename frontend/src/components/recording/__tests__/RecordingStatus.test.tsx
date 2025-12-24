@@ -2,11 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { RecordingStatus } from '../RecordingStatus';
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Radio: () => <div data-testid="radio-icon">Radio</div>,
-}));
-
 describe('RecordingStatus', () => {
   beforeEach(() => {
     vi.useFakeTimers();

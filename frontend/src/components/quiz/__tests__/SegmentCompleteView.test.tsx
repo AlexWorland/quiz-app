@@ -2,11 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { SegmentCompleteView } from '../SegmentCompleteView';
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Trophy: () => <div data-testid="trophy-icon">Trophy</div>,
-}));
-
 // Mock child components
 vi.mock('@/components/leaderboard/SegmentLeaderboard', () => ({
   SegmentLeaderboard: ({ rankings }: { rankings: any[] }) => (

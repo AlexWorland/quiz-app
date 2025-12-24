@@ -85,6 +85,10 @@ services:
       VITE_WS_URL: ws://backend-test:8080
       DOCKER_ENV: "true"
       NODE_ENV: test
+      E2E_MODE: docker
+      E2E_API_URL: http://backend-test:8080
+      E2E_WS_URL: ws://backend-test:8080
+      E2E_BASE_URL: http://localhost:4173
     depends_on:
       backend-test:
         condition: service_started

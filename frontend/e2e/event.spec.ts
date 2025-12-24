@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { loginUser, registerUser, clearAuth } from './fixtures/auth';
 import { isBackendAvailable, createEvent, deleteEvent, getEvent } from './fixtures/api';
+import { registerLogging } from './fixtures/reporting';
+
+registerLogging();
 
 test.describe('Event Management', () => {
   test.beforeEach(async ({ page }) => {
@@ -10,9 +13,6 @@ test.describe('Event Management', () => {
 
   test.describe('Event List', () => {
     test('should display events page when authenticated', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -27,9 +27,6 @@ test.describe('Event Management', () => {
     });
 
     test('should show create event button', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -44,9 +41,6 @@ test.describe('Event Management', () => {
     });
 
     test('should show loading state initially', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -62,9 +56,6 @@ test.describe('Event Management', () => {
 
   test.describe('Create Event', () => {
     test('should open create event modal', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -84,9 +75,6 @@ test.describe('Event Management', () => {
     });
 
     test('should create event with title', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -114,9 +102,6 @@ test.describe('Event Management', () => {
     });
 
     test('should show validation error for empty title', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -143,9 +128,6 @@ test.describe('Event Management', () => {
 
   test.describe('Event Details', () => {
     test('should navigate to event detail page', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -168,9 +150,6 @@ test.describe('Event Management', () => {
     });
 
     test('should display join code', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -192,9 +171,6 @@ test.describe('Event Management', () => {
     });
 
     test('should display QR code', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -219,9 +195,6 @@ test.describe('Event Management', () => {
 
   test.describe('Delete Event', () => {
     test('should delete event', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -263,9 +236,6 @@ test.describe('Event Management', () => {
 
   test.describe('Join Event', () => {
     test('should join event with join code', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       // Create event as one user
       await registerUser(page, {
         username: `host_${Date.now()}`,
@@ -303,9 +273,6 @@ test.describe('Event Management', () => {
     });
 
     test('should show error for invalid join code', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',

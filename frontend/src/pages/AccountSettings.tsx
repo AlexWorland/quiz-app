@@ -38,8 +38,12 @@ export function AccountSettingsPage() {
       updateUser(res.data)
       setStatus('Profile updated successfully')
     } catch (err: any) {
-      const message = err?.response?.data?.message || 'Failed to update profile'
-      setError(message)
+      if (err?.response?.status === 409) {
+        setError('This username is already taken. Please choose another.')
+      } else {
+        const message = err?.response?.data?.message || 'Failed to update profile'
+        setError(message)
+      }
     } finally {
       setSaving(false)
     }

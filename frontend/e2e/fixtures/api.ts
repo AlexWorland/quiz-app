@@ -8,8 +8,148 @@ import type { Page } from '@playwright/test';
  * We append /api here for direct API calls
  */
 
-const BASE_URL = process.env.VITE_API_URL || 'http://localhost:8080';
+const BASE_URL = process.env.E2E_API_URL || process.env.VITE_API_URL || 'http://localhost:8080';
 const API_BASE_URL = `${BASE_URL}/api`;
+const USE_MOCKS = process.env.E2E_USE_MOCKS === '1';
+const FORCE_BACKEND_UP = process.env.E2E_MODE === 'docker' || process.env.DOCKER_ENV === 'true';
+
+type MockEvent = { id: string; join_code: string; title: string; mode?: string };
+type MockSegment = { id: string; event_id: string; presenter_name: string; title?: string };
+type MockQuestion = { id: string; segment_id: string; question_text: string };
+
+const mockDb: {
+  events: Map<string, MockEvent>;
+  segments: Map<string, MockSegment>;
+  questions: Map<string, MockQuestion[]>;
+  locks: Set<string>;
+} = {
+  events: new Map(),
+  segments: new Map(),
+  questions: new Map(),
+  locks: new Set(),
+};
+
+function randomId(prefix: string): string {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function randomJoinCode(): string {
+  return `${Math.floor(Math.random() * 1_000_000)}`.padStart(6, '0');
+}
+
+async function mockApiRequest(method: string, endpoint: string, data?: any): Promise<any> {
+  const cleanEndpoint = endpoint.replace(/^\/api/, '');
+
+  if (cleanEndpoint === '/health') {
+    return { status: 'ok' };
+  }
+
+  if (method === 'GET' && cleanEndpoint === '/auth/me') {
+    const error: any = new Error('Unauthorized');
+    error.status = 401;
+    throw error;
+  }
+
+  if (method === 'POST' && cleanEndpoint === '/auth/logout') {
+    return { ok: true };
+  }
+
+  if (method === 'POST' && cleanEndpoint === '/auth/register') {
+    return { ...data, id: randomId('user') };
+  }
+
+  if (method === 'POST' && cleanEndpoint === '/auth/login') {
+    return { token: 'mock-token', user: { username: data?.username ?? 'mock' } };
+  }
+
+  if (method === 'POST' && cleanEndpoint === '/quizzes') {
+    const id = randomId('evt');
+    const event: MockEvent = {
+      id,
+      join_code: randomJoinCode(),
+      title: data?.title || 'Mock Event',
+      mode: data?.mode ?? 'normal',
+    };
+    mockDb.events.set(id, event);
+    return event;
+  }
+
+  if (method === 'GET' && cleanEndpoint.startsWith('/quizzes/')) {
+    const [, , eventId] = cleanEndpoint.split('/');
+    const event = mockDb.events.get(eventId);
+    if (!event) throw new Error('Event not found');
+    const segments = Array.from(mockDb.segments.values()).filter((seg) => seg.event_id === eventId);
+    return { ...event, segments };
+  }
+
+  if (method === 'DELETE' && cleanEndpoint.startsWith('/quizzes/')) {
+    const [, , eventId] = cleanEndpoint.split('/');
+    mockDb.events.delete(eventId);
+    mockDb.segments.forEach((seg, id) => {
+      if (seg.event_id === eventId) {
+        mockDb.segments.delete(id);
+      }
+    });
+    return { ok: true };
+  }
+
+  if (method === 'POST' && cleanEndpoint.match(/^\/quizzes\/[^/]+\/(segments|questions)$/)) {
+    const [, , eventId] = cleanEndpoint.split('/');
+    const segmentId = randomId('seg');
+    const segment: MockSegment = {
+      id: segmentId,
+      event_id: eventId,
+      presenter_name: data?.presenter_name ?? 'Presenter',
+      title: data?.title ?? 'Segment',
+    };
+    mockDb.segments.set(segmentId, segment);
+    return segment;
+  }
+
+  if (method === 'POST' && cleanEndpoint.startsWith('/segments/') && cleanEndpoint.endsWith('/questions')) {
+    const [, , segmentId] = cleanEndpoint.split('/');
+    const question: MockQuestion = {
+      id: randomId('q'),
+      segment_id: segmentId,
+      question_text: data?.question_text ?? 'Mock Question?',
+    };
+    const list = mockDb.questions.get(segmentId) || [];
+    list.push(question);
+    mockDb.questions.set(segmentId, list);
+    return question;
+  }
+
+  if (method === 'GET' && cleanEndpoint.startsWith('/events/join/')) {
+    const joinCode = cleanEndpoint.split('/').pop();
+    const event = Array.from(mockDb.events.values()).find((evt) => evt.join_code === joinCode);
+    if (!event) {
+      const error: any = new Error('Join code not found');
+      error.status = 404;
+      throw error;
+    }
+    return event;
+  }
+
+  if (method === 'POST' && cleanEndpoint.endsWith('/lock')) {
+    const eventId = cleanEndpoint.split('/')[2];
+    mockDb.locks.add(eventId);
+    return { locked: true };
+  }
+
+  if (method === 'POST' && cleanEndpoint.endsWith('/unlock')) {
+    const eventId = cleanEndpoint.split('/')[2];
+    mockDb.locks.delete(eventId);
+    return { locked: false };
+  }
+
+  throw new Error(`Mock API route not implemented: ${method} ${endpoint}`);
+}
+
+export const useMocks = USE_MOCKS;
+
+export async function handleMockApi(method: string, endpoint: string, data?: any): Promise<any> {
+  return mockApiRequest(method, endpoint, data);
+}
 
 /**
  * Make API request from test context
@@ -20,6 +160,10 @@ export async function apiRequest(
   endpoint: string,
   data?: any
 ): Promise<any> {
+  if (USE_MOCKS) {
+    return mockApiRequest(method, endpoint, data);
+  }
+
   const token = await page.evaluate(() => {
     const authStore = localStorage.getItem('auth-store');
     if (!authStore) return null;
@@ -71,7 +215,11 @@ export async function createSegment(
   eventId: string,
   segmentData: { presenter_name: string; title?: string; presenter_user_id?: string }
 ): Promise<{ id: string; event_id: string; presenter_name: string; title?: string }> {
-  return await apiRequest(page, 'POST', `/quizzes/${eventId}/questions`, segmentData);
+  try {
+    return await apiRequest(page, 'POST', `/quizzes/${eventId}/segments`, segmentData);
+  } catch {
+    return await apiRequest(page, 'POST', `/quizzes/${eventId}/questions`, segmentData);
+  }
 }
 
 /**
@@ -100,22 +248,33 @@ export async function deleteEvent(page: Page, eventId: string): Promise<void> {
  * Checks the health endpoint to verify backend is reachable
  */
 export async function isBackendAvailable(page: Page): Promise<boolean> {
+  if (USE_MOCKS) {
+    return true;
+  }
+  if (FORCE_BACKEND_UP) {
+    return true;
+  }
+
   try {
-    // Try health endpoint first (doesn't require auth)
-    const healthUrl = `${BASE_URL}/api/health`;
-    try {
-      const response = await page.request.fetch(healthUrl, {
-        method: 'GET',
-        timeout: 3000,
-      });
-      // Any response means backend is available
-      return response.ok || response.status < 500;
-    } catch (e: any) {
-      // Network errors mean backend is down
-      if (e.message?.includes('ECONNREFUSED') || e.message?.includes('fetch failed') || e.message?.includes('net::ERR')) {
-        return false;
+    const healthCandidates = [
+      `${BASE_URL}/api/health`,
+      `${BASE_URL}/health`,
+    ];
+
+    for (const url of healthCandidates) {
+      try {
+        const response = await page.request.fetch(url, {
+          method: 'GET',
+          timeout: 4000,
+        });
+        if (response.ok || response.status < 500) {
+          return true;
+        }
+      } catch (e: any) {
+        if (e.message?.includes('ECONNREFUSED') || e.message?.includes('fetch failed') || e.message?.includes('net::ERR')) {
+          continue;
+        }
       }
-      // Other errors (like timeout) - try auth endpoint
     }
 
     // Fallback: try auth endpoint (will return 401 if backend is up)
@@ -125,10 +284,8 @@ export async function isBackendAvailable(page: Page): Promise<boolean> {
         method: 'GET',
         timeout: 2000,
       });
-      // Any response means backend is available
       return true;
     } catch (e: any) {
-      // 401 means backend is up, network errors mean it's down
       if (e.message?.includes('401') || e.message?.includes('Unauthorized')) {
         return true;
       }

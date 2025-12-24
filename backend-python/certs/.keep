@@ -1,0 +1,2 @@
+# Place corporate root/intermediate certificates (.crt) here when building *.corp Dockerfiles.
+

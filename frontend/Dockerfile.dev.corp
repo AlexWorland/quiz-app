@@ -1,0 +1,35 @@
+# Corporate development image for React frontend with Playwright using corporate Node base.
+FROM artifactory-edge.expedia.biz/all-docker-virtual/node:22.18.0
+
+WORKDIR /app
+
+# Optional: trust corporate CAs placed in frontend/certs/*.crt
+COPY certs/ /tmp/certs/
+COPY certs/ /certs/
+RUN if ls /tmp/certs/*.crt >/dev/null 2>&1; then \
+      cp /tmp/certs/*.crt /usr/local/share/ca-certificates/ && update-ca-certificates; \
+    fi
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json* ./
+RUN npm config set strict-ssl false && \
+    if [ -f /certs/zscaler-root-certificate.crt ]; then \
+      export NODE_EXTRA_CA_CERTS=/certs/zscaler-root-certificate.crt; \
+      export NPM_CONFIG_CAFILE=/certs/zscaler-root-certificate.crt; \
+    else \
+      export NPM_CONFIG_CAFILE=/etc/ssl/certs/ca-certificates.crt; \
+    fi; \
+    npm install -g npm@10.9.2 && npm ci --legacy-peer-deps
+RUN npx playwright install --with-deps chromium
+
+COPY . .
+
+EXPOSE 5173
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+    CMD wget --quiet --tries=1 --spider http://localhost:5173/ || exit 1
+
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+

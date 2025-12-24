@@ -67,7 +67,7 @@ A real-time multiplayer quiz application for multi-presenter events with live au
 
 | Component | Technology |
 |-----------|------------|
-| Backend | Rust (Axum framework) |
+| Backend | Python (FastAPI) |
 | Frontend | React 18 + TypeScript |
 | Styling | Tailwind CSS |
 | State Management | Zustand |
@@ -77,14 +77,17 @@ A real-time multiplayer quiz application for multi-presenter events with live au
 | AI Providers | Claude, OpenAI, Ollama |
 | STT Providers | Deepgram, AssemblyAI, OpenAI Whisper |
 
+Note: The legacy Rust backend under `backend/` is kept for reference; active development and testing use the FastAPI backend in `backend-python/`.
+
 ## Prerequisites
 
-- **Docker** and **Docker Compose** (recommended)
-- Or for local development:
-  - Rust 1.70+ with Cargo
+- **Docker** and **Docker Compose** (recommended default)
+- Or for local development (when explicitly requested):
+  - Python 3.11+ (FastAPI backend)
   - Node.js 18+ with npm
   - PostgreSQL 15
   - MinIO (optional, for avatars)
+  - Rust toolchain only if working on the legacy `backend/` code
 
 ## Quick Start (Docker)
 
@@ -127,29 +130,24 @@ This starts Ollama and pulls the llama2 model on first run.
 
 ## Local Development
 
-### Backend
+Docker remains the default path for builds/tests. When explicitly requested, you can run the FastAPI backend natively:
+
+### Backend (FastAPI, `backend-python/`)
 
 ```bash
-# Start dependencies
-docker-compose up -d postgres minio minio-init
+# Start dependencies (Postgres/MinIO) if needed
+# docker-compose up -d postgres minio minio-init
 
-# Navigate to backend
-cd backend
-
-# Build
-cargo build
-
-# Run development server
-cargo run
+cd backend-python
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload --port 8080
 
 # Run tests
-cargo test
-
-# Lint
-cargo clippy
-
-# Format
-cargo fmt
+pytest
 ```
 
 ### Frontend
@@ -174,22 +172,46 @@ npm run type-check
 npm run lint
 ```
 
+### End-to-End Tests (Playwright)
+
+- **Docker (recommended)**  
+  ```bash
+  docker compose -f docker-compose.test.yml run --rm frontend-test npm run test:e2e:docker
+  ```
+  Uses the test stack (postgres, backend, minio). Playwright starts a dev server inside the runner.
+
+- **Local without Docker (backend already running)**  
+  ```bash
+  cd frontend
+  E2E_MODE=local E2E_API_URL=http://localhost:8080 E2E_WS_URL=ws://localhost:8080 npm run test:e2e:local
+  ```
+  Expects a frontend dev server on `http://localhost:5173` (run `npm run dev` separately).
+
+- **Local, auto-start dev server**  
+  ```bash
+  cd frontend
+  npm run test:e2e:local:serve
+  ```
+  Starts a Vite dev server on port 4173 for the tests. Set `E2E_API_URL`/`E2E_WS_URL` if your backend is not on the default ports.
+
+Options:
+- `E2E_USE_MOCKS=1` runs against the in-test mock API when a backend is unavailable.
+- `E2E_LOCAL_START_SERVICES=false` skips auto-start of local DB/MinIO. Default is to attempt starting them via `docker-compose.test.yml` when running in local mode and the backend health check fails.
+- `E2E_LOCAL_START_BACKEND=true` also starts the `backend-test` container when local backend is not running (fallback only; leave false when you run FastAPI locally).
+
 ## Project Structure
 
 ```
 quiz-app/
-├── backend/
+├── backend-python/          # Primary FastAPI backend (active)
+│   ├── app/                 # FastAPI app, routes, services, ws
+│   ├── migrations/          # Alembic migrations
+│   ├── tests/               # Pytest suite
+│   └── requirements.txt
+├── backend/                 # Legacy Rust backend (reference only)
 │   ├── src/
-│   │   ├── main.rs          # Entry point, router setup
-│   │   ├── models/          # Domain models (User, Event, Question)
-│   │   ├── routes/          # HTTP handlers
-│   │   ├── services/        # Business logic (AI, scoring, transcription)
-│   │   ├── ws/              # WebSocket layer (hub, handlers, messages)
-│   │   ├── auth/            # JWT handling
-│   │   └── error.rs         # Error types
-│   ├── migrations/          # SQLx database migrations
-│   ├── Cargo.toml
-│   └── Dockerfile
+│   ├── migrations/
+│   └── Cargo.toml
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx          # Router configuration
@@ -229,6 +251,12 @@ Copy `.env.example` to `.env` and configure:
 | `VITE_API_URL` | Backend API URL (frontend) | `http://localhost:8080` |
 | `VITE_WS_URL` | WebSocket URL (frontend) | `ws://localhost:8080` |
 | `RUST_LOG` | Log level | `info` |
+| `MEGA_QUIZ_SINGLE_SEGMENT_MODE` | Mega quiz behavior for single-segment events (`remix` to replay questions, `skip` to go straight to results) | `remix` |
+
+### Mega quiz flow
+
+- When all segments finish, the backend emits `mega_quiz_ready` with the available question count and the configured single-segment mode.
+- If a quiz (segment or mega) is started with no participants connected, the session pauses with reason `no_participants` until someone joins.
 
 ## Database Migrations
 

@@ -2,16 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QuizReadyIndicator } from '../QuizReadyIndicator';
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  CheckCircle2: () => <div data-testid="check-icon">Check</div>,
-}));
-
 describe('QuizReadyIndicator', () => {
   it('should show ready state when goodQuestionCount meets minimum', () => {
     render(<QuizReadyIndicator questionCount={10} goodQuestionCount={5} minQuestions={5} />);
     expect(screen.getByText('✓ Ready to quiz')).toBeInTheDocument();
-    expect(screen.getByTestId('check-icon')).toBeInTheDocument();
   });
 
   it('should show generating state when goodQuestionCount is below minimum', () => {

@@ -57,6 +57,7 @@ export type AudioServerMessage =
   | { type: 'transcript_update'; text: string; is_final: boolean }
   | { type: 'question_generated'; question: string; correct_answer: string; source_transcript: string }
   | { type: 'transcription_error'; error: string }
+  | { type: 'ai_error'; error_type: 'service_unavailable' | 'rate_limit' | 'connection_error' | 'unknown'; message: string }
 
 interface UseAudioWebSocketOptions {
   segmentId: string

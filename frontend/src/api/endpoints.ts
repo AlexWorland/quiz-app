@@ -62,6 +62,10 @@ export interface Event {
   status: 'waiting' | 'active' | 'finished'
   num_fake_answers: number
   time_per_question: number
+  join_locked: boolean
+  join_locked_at?: string
+  previous_status?: string | null
+  ended_at?: string | null
   created_at: string
 }
 
@@ -76,6 +80,8 @@ export interface Segment {
   recording_started_at?: string
   recording_ended_at?: string
   quiz_started_at?: string
+  previous_status?: string | null
+  ended_at?: string | null
   created_at: string
 }
 
@@ -113,6 +119,11 @@ export interface LeaderboardEntry {
   username: string
   avatar_url?: string
   score: number
+  /** Whether this participant joined after the quiz started */
+  is_late_joiner?: boolean
+  response_time_ms?: number
+  /** Whether this participant is currently connected to the event */
+  is_present?: boolean
 }
 
 export type QuizPhase =
@@ -122,7 +133,10 @@ export type QuizPhase =
   | 'showing_leaderboard'
   | 'between_questions'
   | 'segment_complete'
+  | 'mega_quiz_ready'
+  | 'mega_quiz'
   | 'event_complete'
+  | 'presenter_paused'
 
 // Event endpoints
 export const listEvents = () =>
@@ -145,14 +159,96 @@ export const getEventByJoinCode = (code: string) =>
   client.get<Event>(`/events/join/${code}`)
 
 // Join event with device fingerprint
+export interface JoinEventRequest {
+  code: string
+  deviceFingerprint: string
+  display_name: string
+  avatar_url?: string
+  avatar_type?: 'emoji' | 'preset' | 'custom'
+}
+
 export interface JoinEventResponse {
   eventId: string
   deviceId: string
   sessionToken: string
+  displayName: string
+  isRejoining: boolean
 }
 
-export const joinEvent = (code: string, deviceFingerprint: string) =>
-  client.post<JoinEventResponse>('/events/join', { code, deviceFingerprint })
+export const joinEvent = (request: JoinEventRequest) =>
+  client.post<JoinEventResponse>('/events/join', request)
+
+// Recover participant session after device identity loss
+export interface RecoverParticipantRequest {
+  display_name: string
+  new_device_fingerprint: string
+}
+
+export const recoverParticipant = (eventId: string, request: RecoverParticipantRequest) =>
+  client.post<JoinEventResponse>(`/events/${eventId}/recover-participant`, request)
+
+// Join event as host (anonymous participation)
+export interface JoinAsHostRequest {
+  display_name: string
+  avatar_url?: string
+  avatar_type?: 'emoji' | 'preset' | 'custom'
+}
+
+export const joinAsHost = (eventId: string, request: JoinAsHostRequest) =>
+  client.post<JoinEventResponse>(`/events/${eventId}/join-as-host`, request)
+
+// Get event participants
+export interface EventParticipant {
+  id: string
+  event_id: string
+  display_name: string
+  avatar_url?: string
+  avatar_type?: string
+  total_score: number
+  join_status: string
+  is_late_joiner: boolean
+}
+
+export const getEventParticipants = (eventId: string) =>
+  client.get<EventParticipant[]>(`/events/${eventId}/participants`)
+
+// Update participant display name
+export const updateParticipantDisplayName = (
+  eventId: string,
+  participantId: string,
+  displayName: string
+) =>
+  client.patch<EventParticipant>(
+    `/events/${eventId}/participants/${participantId}/name`,
+    { display_name: displayName }
+  )
+
+// QR Code for event join
+export interface QrCodeResponse {
+  qr_code: string  // SVG string
+  join_url: string
+  join_code: string
+  participant_count: number
+}
+
+export const getEventQrCode = (eventId: string, size?: number) =>
+  client.get<QrCodeResponse>(`/events/${eventId}/qr`, { params: { size } })
+
+// Join lock/unlock endpoints
+export interface JoinLockResponse {
+  join_locked: boolean
+  join_locked_at: string | null
+  message: string
+}
+
+export const lockEventJoin = (eventId: string) =>
+  client.post<JoinLockResponse>(`/events/${eventId}/join/lock`)
+
+export const unlockEventJoin = (eventId: string) =>
+  client.post<JoinLockResponse>(`/events/${eventId}/join/unlock`)
+
+export const getJoinLockStatus = (eventId: string) =>
+  client.get<JoinLockResponse>(`/events/${eventId}/join/status`)
 
 export const createSegment = (eventId: string, data: CreateSegmentRequest) =>
   client.post<Segment>(`/quizzes/${eventId}/questions`, data)
@@ -178,6 +274,26 @@ export const stopRecording = (segmentId: string) =>
 
 export const restartRecording = (segmentId: string) =>
   client.post<Segment>(`/segments/${segmentId}/recording/restart`)
+
+// Segment completion and resume
+export const completeSegment = (segmentId: string) =>
+  client.post<Segment>(`/segments/${segmentId}/complete`)
+
+export const resumeSegment = (segmentId: string) =>
+  client.post<Segment>(`/segments/${segmentId}/resume`)
+
+export const clearSegmentResumeState = (segmentId: string) =>
+  client.post<Segment>(`/segments/${segmentId}/clear-resume`)
+
+// Event completion and resume
+export const completeEvent = (eventId: string) =>
+  client.post<Event>(`/quizzes/${eventId}/complete`)
+
+export const resumeEvent = (eventId: string) =>
+  client.post<Event>(`/quizzes/${eventId}/resume`)
+
+export const clearEventResumeState = (eventId: string) =>
+  client.post<Event>(`/quizzes/${eventId}/clear-resume`)
 
 // Question endpoints
 export const getSegmentQuestions = (segmentId: string) =>
@@ -232,6 +348,67 @@ export const getCanvasStrokes = (eventId: string) =>
 export const clearCanvas = (eventId: string) =>
   client.delete(`/events/${eventId}/canvas`)
 
+// Export endpoints
+export type ExportFormat = 'json' | 'csv'
+
+export interface EventExport {
+  event: {
+    id: string
+    title: string
+    description?: string
+    join_code: string
+    mode: string
+    status: string
+    created_at: string
+  }
+  segments: Array<{
+    id: string
+    title?: string
+    presenter_name: string
+    status: string
+    questions: Array<{
+      id: string
+      question_text: string
+      correct_answer: string
+      order_index: number
+    }>
+  }>
+  participants: Array<{
+    id: string
+    display_name: string
+    total_score: number
+    is_late_joiner: boolean
+    joined_at: string
+  }>
+  final_leaderboard: Array<{
+    rank: number
+    display_name: string
+    score: number
+    is_late_joiner: boolean
+  }>
+  exported_at: string
+}
+
+export const exportEventResults = async (eventId: string, format: ExportFormat = 'json') => {
+  const response = await client.get(`/events/${eventId}/export`, {
+    params: { format },
+    responseType: 'blob',
+  })
+  return response
+}
+
+// Utility to trigger download from blob response
+export const downloadExport = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // Convenience object
 export const eventAPI = {
   list: listEvents,
@@ -240,6 +417,7 @@ export const eventAPI = {
   update: updateEvent,
   delete: deleteEvent,
   getByJoinCode: getEventByJoinCode,
+  joinAsHost,
   createSegment,
   updateSegment,
   deleteSegment,
@@ -256,4 +434,6 @@ export const eventAPI = {
   getSegment,
   getCanvasStrokes,
   clearCanvas,
+  exportResults: exportEventResults,
+  downloadExport,
 }

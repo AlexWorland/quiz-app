@@ -2,14 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { RecordingControls } from '../RecordingControls';
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Play: () => <div data-testid="play-icon">Play</div>,
-  Pause: () => <div data-testid="pause-icon">Pause</div>,
-  Square: () => <div data-testid="square-icon">Square</div>,
-  RotateCcw: () => <div data-testid="restart-icon">Restart</div>,
-}));
-
 describe('RecordingControls', () => {
   const defaultProps = {
     status: 'pending' as const,

@@ -97,6 +97,7 @@ export function AvatarSelector({ onSelect, loading = false }: AvatarSelectorProp
       <div className="flex gap-2 mb-4">
         {(['emoji', 'stock', 'upload'] as const).map((t) => (
           <button
+            type="button"
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -114,9 +115,10 @@ export function AvatarSelector({ onSelect, loading = false }: AvatarSelectorProp
 
       {tab === 'emoji' && (
         <div className="grid grid-cols-6 gap-2">
-          {EMOJI_AVATARS.map((emoji) => (
+          {EMOJI_AVATARS.map((emoji, idx) => (
             <button
-              key={emoji}
+              type="button"
+              key={`${emoji}-${idx}`}
               onClick={() => handleEmojiSelect(emoji)}
               className={`text-3xl p-2 rounded-lg transition-all ${
                 selectedEmoji === emoji
@@ -134,12 +136,13 @@ export function AvatarSelector({ onSelect, loading = false }: AvatarSelectorProp
         <div>
           {loadingImages ? (
             <div className="flex justify-center py-8">
-              <Loader className="animate-spin" />
+              <Loader className="animate-spin" data-testid="loader-icon" />
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-2">
               {stockImages.map((url, idx) => (
                 <button
+                  type="button"
                   key={idx}
                   onClick={() => onSelect(url, 'preset')}
                   className="aspect-square rounded-lg overflow-hidden hover:ring-2 hover:ring-accent-cyan transition-all"
@@ -164,7 +167,7 @@ export function AvatarSelector({ onSelect, loading = false }: AvatarSelectorProp
       {tab === 'upload' && (
         <label className="block">
           <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-accent-cyan cursor-pointer transition-colors">
-            <Upload className="mx-auto mb-2" />
+            <Upload className="mx-auto mb-2" data-testid="upload-icon" />
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Click to upload or drag and drop
             </p>

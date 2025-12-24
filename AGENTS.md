@@ -7,11 +7,11 @@
 - Root docs (`README.md`, `ARCHITECTURE.md`, etc.) describe features and operational notes.
 
 ## Build, Test, and Development Commands
-- Requirement: run all builds, tests, and local execution via Docker/Docker Compose unless explicitly approved otherwise.
+- Requirement: run all builds, tests, and local execution via Docker/Docker Compose unless explicitly approved otherwise; frontend E2E tests may also run locally without Docker when services are already running (see `docs/E2E_TESTING.md`).
 - Tests must use the test Docker files (`docker-compose.test.yml`, `backend/Dockerfile.test`, `frontend/Dockerfile.test`), not the production or dev Dockerfiles.
 - Backend tests: `./scripts/run-backend-tests.sh` or `docker compose -f docker-compose.test.yml run --rm --build -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend-test cargo test`.
 - Frontend unit tests: `docker compose -f docker-compose.test.yml run --rm --build frontend-test npm test -- --run`.
-- Frontend E2E tests: `docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:e2e`.
+- Frontend E2E tests: `docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:e2e`, or from `frontend` without Docker when backend/frontend/MinIO are running: `npm run test:e2e`.
 - Dev Docker stack: `docker-compose up -d` and `docker-compose down -v` to reset volumes.
 
 ## Coding Style & Naming Conventions

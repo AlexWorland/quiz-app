@@ -11,16 +11,6 @@ vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: any) => <div>{children}</div>,
 }));
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Trophy: () => <div data-testid="trophy-icon">Trophy</div>,
-  Medal: () => <div data-testid="medal-icon">Medal</div>,
-  Award: () => <div data-testid="award-icon">Award</div>,
-  TrendingUp: () => <div data-testid="trend-up">Up</div>,
-  TrendingDown: () => <div data-testid="trend-down">Down</div>,
-  Minus: () => <div data-testid="minus">-</div>,
-}));
-
 describe('AnimatedLeaderboard', () => {
   const mockRankings = [
     { rank: 1, user_id: '1', username: 'Winner', score: 100 },
@@ -95,7 +85,7 @@ describe('AnimatedLeaderboard', () => {
       { rank: 2, user_id: '1', username: 'Winner', score: 80 },
     ];
     render(<AnimatedLeaderboard rankings={[mockRankings[0]]} previousRankings={previousRankings} />);
-    expect(screen.getByTestId('trend-up')).toBeInTheDocument();
+    expect(screen.getByTestId('trending-up-icon')).toBeInTheDocument();
   });
 
   it('should show trend down icon for rank decrease', () => {
@@ -103,7 +93,7 @@ describe('AnimatedLeaderboard', () => {
       { rank: 1, user_id: '2', username: 'RunnerUp', score: 100 },
     ];
     render(<AnimatedLeaderboard rankings={[mockRankings[1]]} previousRankings={previousRankings} />);
-    expect(screen.getByTestId('trend-down')).toBeInTheDocument();
+    expect(screen.getByTestId('trending-down-icon')).toBeInTheDocument();
   });
 
   it('should handle empty rankings', () => {

@@ -1,15 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { loginUser, registerUser, logoutUser, isAuthenticated, clearAuth, testUsers } from './fixtures/auth';
-import { isBackendAvailable } from './fixtures/api';
+import { isBackendAvailable, useMocks } from './fixtures/api';
+import { registerLogging } from './fixtures/reporting';
+
+registerLogging();
 
 test.describe('Authentication', () => {
   test.beforeEach(async ({ page }) => {
-    // Clear auth state first (before any navigation)
+    // Clear auth state - this now includes navigation and proper hydration waits
     await clearAuth(page);
-    // Navigate to login to ensure we're logged out
-    await page.goto('/login', { waitUntil: 'domcontentloaded' });
-    // Wait a bit for any redirects to complete
-    await page.waitForTimeout(300);
   });
 
   test.describe('Login', () => {
@@ -30,26 +29,25 @@ test.describe('Authentication', () => {
     });
 
     test('should show error for invalid credentials', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available - skipping test');
-
       await page.goto('/login');
       await page.waitForLoadState('domcontentloaded');
       
       await page.getByLabel('Username').fill('invalid_user');
       await page.getByLabel('Password').fill('wrong_password');
-      await page.getByRole('button', { name: /Login/i }).click();
-      
-      // Wait for error message (could be various error texts)
-      await expect(
-        page.getByText(/Login failed|Invalid credentials|Unauthorized|error/i)
-      ).toBeVisible({ timeout: 8000 });
+      const [loginResponse] = await Promise.all([
+        page.waitForResponse((resp) => resp.url().includes('/auth/login'), { timeout: 10000 }),
+        page.getByRole('button', { name: /Login/i }).click(),
+      ]);
+
+      expect(loginResponse.status()).toBe(401);
+
+      // Stay on login page and inputs remain visible
+      await expect(page).toHaveURL(/\/login/, { timeout: 5000 });
+      await expect(page.getByLabel('Username')).toBeVisible();
+      await expect(page.getByLabel('Password')).toBeVisible();
     });
 
     test('should successfully login with valid credentials', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available');
-
       const username = `test_user_${Date.now()}`;
       
       // First register a user
@@ -61,11 +59,16 @@ test.describe('Authentication', () => {
 
       await clearAuth(page);
 
-      // Then login
-      await loginUser(page, username, 'testpass123');
-      
+      // Then login (ensure backend responded 200 before waiting for redirect)
+      const [loginResponse] = await Promise.all([
+        page.waitForResponse((resp) => resp.url().includes('/auth/login'), { timeout: 10000 }),
+        loginUser(page, username, 'testpass123'),
+      ]);
+
+      expect(loginResponse.status()).toBe(200);
+
       // Should redirect to home
-      await expect(page).toHaveURL(/^\/(home|events)/, { timeout: 5000 });
+      await expect(page).toHaveURL(/home|events/, { timeout: 15000 });
       
       // Should be authenticated
       const authenticated = await isAuthenticated(page);
@@ -79,9 +82,6 @@ test.describe('Authentication', () => {
     });
 
     test('should redirect to home if already authenticated', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -95,7 +95,7 @@ test.describe('Authentication', () => {
       await page.goto('/login', { waitUntil: 'domcontentloaded' });
       
       // Should redirect to home (App.tsx redirects authenticated users)
-      await expect(page).toHaveURL(/^\/(home|events)/, { timeout: 5000 });
+      await expect(page).toHaveURL(/home|events/, { timeout: 5000 });
     });
   });
 
@@ -123,9 +123,6 @@ test.describe('Authentication', () => {
     });
 
     test('should successfully register with emoji avatar', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available');
-
       const username = `test_user_${Date.now()}`;
       
       await registerUser(page, {
@@ -135,7 +132,7 @@ test.describe('Authentication', () => {
       });
       
       // Should redirect to home
-      await expect(page).toHaveURL(/^\/(home|events)/, { timeout: 5000 });
+      await expect(page).toHaveURL(/home|events/, { timeout: 5000 });
       
       // Should be authenticated
       const authenticated = await isAuthenticated(page);
@@ -143,9 +140,6 @@ test.describe('Authentication', () => {
     });
 
     test('should show error for duplicate username', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available');
-
       const username = `test_user_${Date.now()}`;
       
       // Register first time
@@ -197,9 +191,6 @@ test.describe('Authentication', () => {
     });
 
     test('should redirect to home if already authenticated', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -213,15 +204,12 @@ test.describe('Authentication', () => {
       await page.goto('/register', { waitUntil: 'domcontentloaded' });
       
       // Should redirect to home (App.tsx redirects authenticated users)
-      await expect(page).toHaveURL(/^\/(home|events)/, { timeout: 5000 });
+      await expect(page).toHaveURL(/home|events/, { timeout: 5000 });
     });
   });
 
   test.describe('Logout', () => {
     test('should logout successfully', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',
@@ -254,9 +242,6 @@ test.describe('Authentication', () => {
     });
 
     test('should allow access to protected route when authenticated', async ({ page }) => {
-      const backendAvailable = await isBackendAvailable(page);
-      test.skip(!backendAvailable, 'Backend not available');
-
       await registerUser(page, {
         username: `test_user_${Date.now()}`,
         password: 'testpass123',

@@ -33,6 +33,10 @@ export function QuizResults({
   const maxCount = Math.max(...distribution.map((d) => d.count), 1)
   const maxSegmentScore = Math.max(...(segmentLeaderboard?.map((e) => e.score) || []), 1)
   const maxEventScore = Math.max(...(eventLeaderboard?.map((e) => e.score) || []), 1)
+  
+  // Check if no one got points in this question
+  const noOneGotPoints = pointsEarned === 0 || pointsEarned === undefined
+  const allParticipantsZero = segmentLeaderboard?.every(e => e.score === 0) || eventLeaderboard?.every(e => e.score === 0)
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
@@ -56,6 +60,35 @@ export function QuizResults({
               <span className="ml-2 text-blue-600">(+{pointsEarned} points)</span>
             )}
           </p>
+        )}
+        
+        {/* Encouraging message for zero-score scenarios */}
+        {allParticipantsZero && (
+          <div className="mt-4 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+            <div className="flex items-center">
+              <div className="text-2xl mr-3">🤔</div>
+              <div>
+                <p className="font-semibold text-blue-800">Tough question!</p>
+                <p className="text-blue-700 text-sm mt-1">
+                  No worries, that was a challenging one. Let's try the next question!
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {noOneGotPoints && !userAnswer && totalAnswers === 0 && (
+          <div className="mt-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+            <div className="flex items-center">
+              <div className="text-2xl mr-3">⏰</div>
+              <div>
+                <p className="font-semibold text-yellow-800">Time's up!</p>
+                <p className="text-yellow-700 text-sm mt-1">
+                  No one answered this question in time. The next one might be easier!
+                </p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

@@ -13,6 +13,7 @@ export default defineConfig({
       '**/node_modules/**',
       '**/dist/**',
       '**/e2e/**',
+      '**/e2e2/**',
       '**/*.e2e.{ts,tsx}',
       '**/.{idea,git,cache,output,temp}/**',
     ],

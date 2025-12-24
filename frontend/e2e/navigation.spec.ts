@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { loginUser, registerUser, clearAuth } from './fixtures/auth';
 import { isBackendAvailable } from './fixtures/api';
+import { registerLogging } from './fixtures/reporting';
+
+registerLogging();
 
 test.describe('Navigation', () => {
   test.beforeEach(async ({ page }) => {
@@ -43,9 +46,6 @@ test.describe('Navigation', () => {
   });
 
   test('should navigate to events page when authenticated', async ({ page }) => {
-    const backendAvailable = await isBackendAvailable(page);
-    test.skip(!backendAvailable, 'Backend not available - skipping test');
-
     await registerUser(page, {
       username: `test_user_${Date.now()}`,
       password: 'testpass123',

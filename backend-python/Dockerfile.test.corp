@@ -1,0 +1,29 @@
+# Corporate test image for Python FastAPI backend using corporate base image and CA bundle.
+FROM artifactory-edge.expedia.biz/all-docker-virtual/python:3.11-slim
+
+WORKDIR /app
+
+# Optional: trust corporate CAs placed in backend-python/certs/*.crt
+COPY certs/ /tmp/certs/
+RUN if ls /tmp/certs/*.crt >/dev/null 2>&1; then \
+      cp /tmp/certs/*.crt /usr/local/share/ca-certificates/ && update-ca-certificates; \
+    fi
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install test dependencies
+RUN pip install --no-cache-dir pytest pytest-asyncio pytest-cov httpx
+
+# Copy application code
+COPY . .
+
+CMD ["pytest", "-v", "--cov=app", "--cov-report=term-missing"]
+

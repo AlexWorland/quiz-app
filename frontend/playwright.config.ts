@@ -23,6 +23,17 @@ const ROOT_DIR = (() => {
   return fromDirname; // Default fallback
 })();
 
+const useDocker = process.env.E2E_MODE !== 'local' && process.env.E2E_NO_DOCKER !== '1';
+const startServer = process.env.E2E_START_SERVER !== 'false';
+const baseURL = process.env.E2E_BASE_URL || 'http://localhost:4173';
+const apiURL = process.env.E2E_API_URL || process.env.VITE_API_URL || 'http://localhost:8080';
+const wsURL = process.env.E2E_WS_URL || process.env.VITE_WS_URL || 'ws://localhost:8080';
+const webCommand = process.env.E2E_WEB_COMMAND || 'npm run dev -- --host 0.0.0.0 --port 4173';
+const shouldEnsureDocker = !process.env.CI && useDocker;
+const startLocalServices = process.env.E2E_LOCAL_START_SERVICES !== 'false';
+const startLocalBackend = process.env.E2E_LOCAL_START_BACKEND === 'true';
+const useMocks = process.env.E2E_USE_MOCKS === '1';
+
 // Helper to check if Docker services are running and start them if needed
 function ensureDockerServices() {
   let composeCommand = 'docker compose';
@@ -155,12 +166,84 @@ function ensureDockerServices() {
   }
 }
 
-// Ensure Docker services are running before tests
-if (!process.env.CI) {
+function isBackendHealthy() {
+  try {
+    execSync(`curl -sf ${apiURL}/api/health`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ensureLocalServices() {
+  if (useMocks) {
+    console.warn('ℹ️  E2E_USE_MOCKS=1 set; skipping backend/database checks.');
+    return true;
+  }
+
+  if (isBackendHealthy()) {
+    return true;
+  }
+
+  if (!startLocalServices) {
+    console.warn('⚠️  Backend not reachable and E2E_LOCAL_START_SERVICES=false. Start backend/db manually or set E2E_USE_MOCKS=1.');
+    return false;
+  }
+
+  let composeCommand = 'docker compose';
+  try {
+    execSync('docker --version', { stdio: 'ignore' });
+    execSync('docker info > /dev/null 2>&1', { stdio: 'ignore' });
+    execSync('docker compose version', { stdio: 'ignore' });
+  } catch {
+    console.warn('⚠️  Docker not available to start local services. Start backend/db manually or enable E2E_USE_MOCKS=1.');
+    return false;
+  }
+
+  const composeFile = path.join(ROOT_DIR, 'docker-compose.test.yml');
+  const services = ['postgres', 'minio', 'minio-init'];
+  if (startLocalBackend) {
+    services.push('backend-test');
+  }
+
+  console.log(`🚀 Starting local test services: ${services.join(', ')}`);
+  try {
+    execSync(`${composeCommand} -f ${composeFile} up -d ${services.join(' ')}`, {
+      cwd: ROOT_DIR,
+      stdio: 'inherit',
+    });
+  } catch (e: any) {
+    console.warn(`⚠️  Failed to start local services: ${e.message}`);
+    return false;
+  }
+
+  // Simple wait for backend if we started it; otherwise just return true
+  if (startLocalBackend) {
+    const startTime = Date.now();
+    const maxWait = 120000;
+    while (Date.now() - startTime < maxWait) {
+      if (isBackendHealthy()) {
+        console.log('✅ Backend is healthy.');
+        return true;
+      }
+    }
+    console.warn('⚠️  Backend did not become healthy in time; tests may fail.');
+  }
+
+  return true;
+}
+
+// Ensure Docker services are running before tests (unless explicitly disabled)
+if (process.env.DOCKER_ENV === 'true' || process.env.E2E_MODE === 'docker') {
+  // Inside container: services already started by compose
+} else if (shouldEnsureDocker) {
   const servicesReady = ensureDockerServices();
   if (!servicesReady) {
     console.warn('⚠️  Proceeding with tests, but services may not be available.');
   }
+} else if (!process.env.CI) {
+  console.warn('ℹ️  Skipping Docker auto-start (E2E_MODE=local or E2E_NO_DOCKER set).');
+  ensureLocalServices();
 }
 
 export default defineConfig({
@@ -175,11 +258,14 @@ export default defineConfig({
   },
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     actionTimeout: 10000, // 10 seconds for actions
     navigationTimeout: 15000, // 15 seconds for navigation
+    extraHTTPHeaders: {
+      'x-e2e-mode': process.env.E2E_MODE || 'docker',
+    },
   },
   projects: [
     {
@@ -187,6 +273,17 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  // Services are managed by docker-compose, no webServer config needed
-  // Docker compose starts: postgres, minio, backend, frontend
+  webServer: startServer
+    ? {
+        command: webCommand,
+        url: baseURL,
+        reuseExistingServer: !process.env.CI,
+        env: {
+          VITE_API_URL: apiURL,
+          VITE_WS_URL: wsURL,
+          E2E_API_URL: apiURL,
+          E2E_WS_URL: wsURL,
+        },
+      }
+    : undefined,
 });

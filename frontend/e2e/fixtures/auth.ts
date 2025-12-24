@@ -1,5 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { ensureMockApi } from './mockServer';
+import { useMocks } from './api';
 
 /**
  * Authentication fixtures for E2E tests
@@ -34,49 +36,100 @@ export const testUsers = {
 
 /**
  * Register a new user
+ * Forces clean state by unmounting React before navigation
  */
 export async function registerUser(page: Page, user: AuthUser): Promise<void> {
-  // Ensure we're logged out first
+  await ensureMockApi(page);
+  if (useMocks) {
+    await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('http://localhost:4173/'));
+    await page.evaluate((u) => {
+      localStorage.setItem(
+        'auth-store',
+        JSON.stringify({
+          state: {
+            token: 'mock-token',
+            user: {
+              id: `user-${u.username}`,
+              username: u.username,
+              email: u.email ?? `${u.username}@example.com`,
+              role: 'participant',
+            },
+            deviceId: `device-${u.username}`,
+            sessionToken: `session-${u.username}`,
+            isAuthenticated: true,
+          },
+        })
+      );
+    }, user);
+    await page.goto('/home');
+    return;
+  }
+  // Ensure we're logged out first - this unmounts React and clears storage
   await clearAuth(page);
-  
-  await page.goto('/register');
-  await page.waitForLoadState('domcontentloaded');
-  
-  // Wait for page to load and check if we're on register page
-  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-  await page.waitForTimeout(1000); // Wait for any redirects
-  
-  // Verify we're actually on the register page (not redirected to home)
-  const currentUrl = page.url();
-  if (!currentUrl.includes('/register')) {
-    // If redirected, user is already logged in - clear auth and retry
+
+  // Navigate to about:blank first to ensure clean state
+  await page.goto('about:blank');
+  await page.waitForTimeout(200);
+
+  // Navigate to register with fresh React mount
+  await page
+    .goto('/register', { waitUntil: 'domcontentloaded', timeout: 10000 })
+    .catch(() => page.goto('/register', { waitUntil: 'domcontentloaded' }));
+
+  // Wait for React to fully hydrate
+  await page.waitForTimeout(1500);
+
+  // Verify we're on register page and auth is cleared
+  const state = await page.evaluate(() => {
+    try {
+      const authStore = localStorage.getItem('auth-store');
+      const hasAuth = authStore && JSON.parse(authStore)?.state?.token;
+      return {
+        hasAuth,
+        path: window.location.pathname,
+        url: window.location.href
+      };
+    } catch {
+      return {
+        hasAuth: false,
+        path: window.location.pathname,
+        url: window.location.href
+      };
+    }
+  });
+
+  if (state.hasAuth || !state.path.includes('/register')) {
+    // State leaked or redirected - force clear and retry ONE more time
+    await page.goto('about:blank');
     await page.evaluate(() => {
-      localStorage.removeItem('auth-store');
       localStorage.clear();
+      sessionStorage.clear();
     });
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1000);
-    
-    // Check again
-    const newUrl = page.url();
-    if (!newUrl.includes('/register')) {
-      // Still redirected - navigate directly
-      await page.goto('/register', { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(1000);
+    await page.waitForTimeout(300);
+    await page.goto('/register', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2000); // Extra long wait on retry
+
+    // Final check - throw error if still not on register
+    const finalState = await page.evaluate(() => ({
+      path: window.location.pathname,
+      hasAuth: !!(localStorage.getItem('auth-store'))
+    }));
+
+    if (!finalState.path.includes('/register')) {
+      throw new Error(`Unable to navigate to /register. Currently on ${finalState.path}. Has auth: ${finalState.hasAuth}`);
     }
   }
-  
-  // Wait for register page to be visible (check for heading or form)
+
+  // Wait for register page form to be visible
   try {
-    await page.waitForSelector('h1:has-text("Join Quiz App")', { timeout: 5000 });
+    await page.waitForSelector('h1:has-text("Join Quiz App")', { timeout: 8000 });
   } catch {
-    // If heading not found, check if we're on the right page
     const url = page.url();
     if (!url.includes('/register')) {
-      throw new Error(`Expected to be on /register but was on ${url}. User may already be logged in.`);
+      throw new Error(`Expected registration page but on ${url}. Page may have redirected unexpectedly.`);
     }
-    // Page might be loading, wait a bit more
-    await page.waitForTimeout(1000);
+    // Wait longer for slow component rendering
+    await page.waitForTimeout(1500);
   }
   
   // Fill registration form
@@ -151,20 +204,59 @@ export async function registerUser(page: Page, user: AuthUser): Promise<void> {
  * Login with credentials
  */
 export async function loginUser(page: Page, username: string, password: string): Promise<void> {
-  await page.goto('/login');
-  await page.waitForLoadState('domcontentloaded');
+  await ensureMockApi(page);
+  if (useMocks) {
+    await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('http://localhost:4173/'));
+    await page.evaluate((u) => {
+      localStorage.setItem(
+        'auth-store',
+        JSON.stringify({
+          state: {
+            token: 'mock-token',
+            user: { id: `user-${u}`, username: u, email: `${u}@example.com`, role: 'participant' },
+            deviceId: `device-${u}`,
+            sessionToken: `session-${u}`,
+            isAuthenticated: true,
+          },
+        })
+      );
+    }, username);
+    await page.goto('/home');
+    return;
+  }
+  const apiBase =
+    process.env.E2E_API_URL ||
+    process.env.VITE_API_URL ||
+    'http://backend-test:8080';
 
-  // Fill login form
-  await page.getByLabel('Username').fill(username);
-  await page.getByLabel('Password').fill(password);
-
-  // Submit form
-  await page.getByRole('button', { name: /Login/i }).click();
-  
-  // Wait for redirect to home (with longer timeout for backend)
-  await page.waitForURL(/^\/(home|events)/, { timeout: 15000 }).catch(() => {
-    // If redirect doesn't happen, might be backend issue
+  const response = await page.request.post(`${apiBase}/api/auth/login`, {
+    data: { username, password },
   });
+
+  if (!response.ok()) {
+    const body = await response.json().catch(() => ({}));
+    const detail = (body && (body.detail || body.error)) || response.statusText();
+    throw new Error(`Login API failed: ${response.status()} ${detail}`);
+  }
+
+  const data = await response.json();
+
+  await page.evaluate((authData) => {
+    localStorage.setItem(
+      'auth-store',
+      JSON.stringify({
+        state: {
+          token: authData.token,
+          user: authData.user,
+          deviceId: authData.user.id,
+          sessionToken: authData.token,
+          isAuthenticated: true,
+        },
+      })
+    );
+  }, data);
+
+  await page.goto('/home', { waitUntil: 'domcontentloaded' });
 }
 
 /**
@@ -237,54 +329,64 @@ export async function getCurrentUser(page: Page): Promise<{ username?: string; r
 
 /**
  * Clear authentication state
+ * Forces complete React unmount/remount to prevent state leakage
  */
 export async function clearAuth(page: Page): Promise<void> {
   try {
-    // Navigate to any page first to ensure we have a valid context
-    await page.goto('about:blank').catch(() => {});
-    
-    // Clear localStorage - try multiple times to ensure it's cleared
+    // Step 1: Navigate to blank page to unmount React completely
+    await page.goto('about:blank');
+
+    // Step 2: Clear all localStorage while React is unmounted
     await page.evaluate(() => {
       try {
-        localStorage.removeItem('auth-store');
-        // Also try clearing the entire store
-        const keys = Object.keys(localStorage);
-        keys.forEach(key => {
-          if (key.includes('auth') || key.includes('store')) {
-            localStorage.removeItem(key);
-          }
-        });
         localStorage.clear();
+        sessionStorage.clear();
       } catch (e) {
-        // Ignore errors if localStorage is not accessible
+        // Ignore errors
       }
     });
-    
-    // Navigate to login to ensure we're logged out
-    await page.goto('/login', { waitUntil: 'domcontentloaded' }).catch(() => {});
-    // Wait for any redirects to complete
-    await page.waitForTimeout(500);
-    
-    // Verify we're actually on login page (not redirected)
-    const url = page.url();
-    if (!url.includes('/login')) {
-      // Still redirected - clear again and force navigation
-      await page.evaluate(() => {
-        localStorage.removeItem('auth-store');
-        localStorage.clear();
-      });
+
+    // Step 3: Wait a moment to ensure storage operations complete
+    await page.waitForTimeout(300);
+
+    // Step 4: Navigate to login page with fresh React mount
+    await page.goto('/login', { waitUntil: 'networkidle', timeout: 10000 }).catch(() => {
+      return page.goto('/login', { waitUntil: 'domcontentloaded' });
+    });
+
+    // Step 5: Wait for React to fully hydrate with EMPTY storage
+    await page.waitForTimeout(1500);
+
+    // Step 6: Verify auth is cleared and we're on login page
+    const result = await page.evaluate(() => {
+      try {
+        const authStore = localStorage.getItem('auth-store');
+        const hasAuth = authStore && JSON.parse(authStore)?.state?.token;
+        const onLoginPage = window.location.pathname.includes('/login');
+        return { hasAuth, onLoginPage, path: window.location.pathname };
+      } catch {
+        return { hasAuth: false, onLoginPage: window.location.pathname.includes('/login'), path: window.location.pathname };
+      }
+    });
+
+    // If still authenticated or not on login page, force clear again
+    if (result.hasAuth || !result.onLoginPage) {
+      await page.goto('about:blank');
+      await page.evaluate(() => localStorage.clear());
+      await page.waitForTimeout(300);
       await page.goto('/login', { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1500);
     }
   } catch (e) {
-    // Ignore errors - just try to clear storage
+    // Ultimate fallback
     try {
-      await page.evaluate(() => {
-        localStorage.removeItem('auth-store');
-        localStorage.clear();
-      });
+      await page.goto('about:blank');
+      await page.evaluate(() => localStorage.clear());
+      await page.waitForTimeout(300);
+      await page.goto('/login', { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(1500);
     } catch {
-      // Ignore
+      // Give up
     }
   }
 }

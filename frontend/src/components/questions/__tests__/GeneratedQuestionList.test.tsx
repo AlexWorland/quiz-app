@@ -2,12 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { GeneratedQuestionList } from '../GeneratedQuestionList';
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Star: ({ className }: { className?: string }) => <div data-testid="star" className={className}>Star</div>,
-  AlertCircle: () => <div data-testid="alert-icon">Alert</div>,
-}));
-
 describe('GeneratedQuestionList', () => {
   const mockQuestions = [
     {
@@ -64,7 +58,7 @@ describe('GeneratedQuestionList', () => {
 
   it('should render stars for quality scores', () => {
     render(<GeneratedQuestionList questions={mockQuestions} />);
-    const stars = screen.getAllByTestId('star');
+    const stars = screen.getAllByTestId('star-icon');
     expect(stars.length).toBeGreaterThan(0);
   });
 

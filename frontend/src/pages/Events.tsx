@@ -45,14 +45,15 @@ export function EventsPage() {
 
     try {
       setCreating(true)
-      const newEvent = await createEvent({
+      await createEvent({
         title: createForm.title,
         description: createForm.description || undefined,
         mode: createForm.mode,
         num_fake_answers: 3,
         time_per_question: 30,
       } as CreateEventRequest)
-      setEvents([newEvent.data, ...events])
+      // Refresh the list so the newly created event is visible immediately
+      await loadEvents()
       setCreateForm({ title: '', description: '', mode: 'listen_only' })
       setShowCreateModal(false)
     } catch (error) {
@@ -197,6 +198,7 @@ export function EventsPage() {
               <div
                 key={event.id}
                 className="bg-dark-900 rounded-lg p-6 hover:bg-dark-800 transition cursor-pointer border border-dark-700"
+                data-testid="event-card"
               >
                 <div className="flex justify-between items-start mb-4">
                   <h3

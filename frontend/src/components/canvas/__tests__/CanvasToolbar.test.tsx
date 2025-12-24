@@ -3,11 +3,6 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CanvasToolbar } from '../CanvasToolbar';
 
-// Mock lucide-react icon
-vi.mock('lucide-react', () => ({
-  Trash2: () => <div data-testid="trash-icon">Trash</div>,
-}));
-
 describe('CanvasToolbar', () => {
   const defaultProps = {
     color: '#ffffff',
@@ -34,7 +29,7 @@ describe('CanvasToolbar', () => {
   it('should render clear button when canClear is true', () => {
     render(<CanvasToolbar {...defaultProps} canClear={true} />);
     expect(screen.getByText('Clear Canvas')).toBeInTheDocument();
-    expect(screen.getByTestId('trash-icon')).toBeInTheDocument();
+    expect(screen.getByTestId('trash2-icon')).toBeInTheDocument();
   });
 
   it('should not render clear button when canClear is false', () => {

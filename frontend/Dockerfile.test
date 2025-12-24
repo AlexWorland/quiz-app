@@ -7,6 +7,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends wget curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+ENV npm_config_strict_ssl=false
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+
 COPY package.json package-lock.json* ./
 
 RUN npm ci --legacy-peer-deps

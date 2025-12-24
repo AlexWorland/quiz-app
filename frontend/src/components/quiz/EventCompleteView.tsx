@@ -20,10 +20,22 @@ export function EventCompleteView({
   winner,
   segmentWinners
 }: EventCompleteViewProps) {
+  const allZeroScores = finalLeaderboard.length > 0 && finalLeaderboard.every(r => r.score === 0)
+
   return (
     <div className="max-w-2xl mx-auto p-6 text-center">
-      {/* Grand Winner */}
-      {winner && (
+      {/* Grand Winner or All-Zero Message */}
+      {allZeroScores ? (
+        <div className="mb-8 p-6 bg-slate-800/50 rounded-lg border border-slate-700">
+          <div className="text-6xl mb-4">🤔</div>
+          <h1 className="text-3xl font-bold mb-2 text-white">
+            No Champion This Event!
+          </h1>
+          <p className="text-lg text-gray-400">
+            All participants scored 0 points. Better luck next time!
+          </p>
+        </div>
+      ) : winner ? (
         <div className="mb-8">
           <Crown className="w-20 h-20 text-yellow-500 mx-auto mb-4" />
           <h1 className="text-3xl font-bold mb-2">
@@ -33,7 +45,7 @@ export function EventCompleteView({
             Final Score: {winner.score} points
           </p>
         </div>
-      )}
+      ) : null}
 
       {/* Final Standings */}
       <div className="mb-8">

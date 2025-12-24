@@ -1,29 +1,28 @@
 # Running the Application Without Docker
 
-This guide provides instructions for running the frontend, backend, and all tests (unit, integration, and E2E) without Docker.
+This guide provides instructions for running the frontend, backend, and all tests (unit, integration, and E2E) without Docker. Docker remains the default path, but native runs are acceptable when explicitly requested. The active backend is the FastAPI service in `backend-python/`; the Rust backend under `backend/` is legacy and not used.
 
 ## Quick Reference
 
 | Task | Command |
 |------|---------|
-| **Start Backend** | `cd backend && cargo run` |
+| **Start Backend** | `cd backend-python && source venv/bin/activate && uvicorn app.main:app --reload --port 8080` |
 | **Start Frontend** | `cd frontend && npm run dev` |
-| **Backend Unit Tests** | `cd backend && cargo test --lib` or `./scripts/run-backend-tests-local.sh --unit-only` |
-| **Backend Integration Tests** | `cd backend && TEST_DATABASE_URL=postgres://quiz:quiz@localhost:5432/quiz_test cargo test --test '*'` or `./scripts/run-backend-tests-local.sh --integration-only` |
+| **Backend Tests** | `cd backend-python && source venv/bin/activate && pytest` |
 | **Frontend Unit Tests** | `cd frontend && npm test` or `./scripts/run-frontend-tests-local.sh` |
 | **Frontend E2E Tests** | `cd frontend && npm run test:e2e` or `./scripts/run-e2e-tests-local.sh` (requires services running) |
 | **All Tests** | `./scripts/run-all-tests-local.sh` |
-| **Run Migrations** | `cd backend && cargo sqlx migrate run` |
+| **Run Migrations** | `cd backend-python && source venv/bin/activate && alembic upgrade head` |
 | **Create Test DB** | `psql -U quiz -d postgres -c "CREATE DATABASE quiz_test;"` |
 
 ## Prerequisites
 
 ### Required Software
 
-1. **Rust** (latest stable version)
+1. **Python** (3.11+)
    ```bash
-   # Install via rustup: https://rustup.rs/
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   # macOS (Homebrew)
+   brew install python
    ```
 
 2. **Node.js** (v18 or higher)
@@ -154,27 +153,27 @@ This guide provides instructions for running the frontend, backend, and all test
 
 1. **Navigate to backend directory:**
    ```bash
-   cd backend
+   cd backend-python
    ```
 
-2. **Install dependencies (first time only):**
+2. **Create venv and install dependencies (first time only):**
    ```bash
-   # Dependencies are managed by Cargo, no separate install step needed
+   python -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   cp .env.example .env
    ```
 
 3. **Run database migrations:**
    ```bash
-   # Ensure DATABASE_URL is set in .env or environment
-   cargo sqlx migrate run
+   source venv/bin/activate
+   alembic upgrade head
    ```
 
 4. **Start the backend server:**
    ```bash
-   # From backend directory
-   cargo run
-   
-   # Or with custom port
-   BACKEND_PORT=8080 cargo run
+   source venv/bin/activate
+   uvicorn app.main:app --reload --port 8080
    ```
 
    The backend will be available at `http://localhost:8080`
@@ -211,66 +210,27 @@ This guide provides instructions for running the frontend, backend, and all test
 
 ## Running Tests
 
-### Backend Tests
+### Backend Tests (FastAPI)
 
-#### Unit Tests (No Database Required)
-
-Unit tests don't require external dependencies:
+Backend tests use pytest and require PostgreSQL:
 
 ```bash
-cd backend
+cd backend-python
+source venv/bin/activate
 
-# Run all unit tests
-cargo test --lib
+# Run full suite
+pytest
 
-# Run specific test module
-cargo test --lib auth::jwt
+# Run specific test file
+pytest tests/test_auth.py
 
-# Run with output
-cargo test --lib -- --nocapture
-
-# Run specific test
-cargo test --lib test_jwt_token_creation
+# Run with coverage
+pytest --cov=app --cov-report=term-missing
 ```
 
-#### Integration Tests (Database Required)
-
-Integration tests require a PostgreSQL database:
-
-1. **Ensure PostgreSQL is running and test database exists:**
-   ```bash
-   # Create test database if it doesn't exist
-   psql -U quiz -d postgres -c "CREATE DATABASE quiz_test;"
-   ```
-
-2. **Set test database URL:**
-   ```bash
-   export TEST_DATABASE_URL=postgres://quiz:quiz@localhost:5432/quiz_test
-   ```
-
-3. **Run integration tests:**
-   ```bash
-   cd backend
-   
-   # Run all integration tests
-   cargo test --test '*'
-   
-   # Run specific integration test file
-   cargo test --test auth_routes_test
-   
-   # Run with output
-   cargo test --test '*' -- --nocapture
-   ```
-
-4. **Run all tests (unit + integration):**
-   ```bash
-   cargo test
-   ```
-
-**Note:** Integration tests will automatically:
-- Create the test database if it doesn't exist (via `test_utils.rs`)
-- Run migrations before tests
-- Use a separate test database to avoid affecting development data
+Notes:
+- Tests create/drop tables in the configured database URL; point `DATABASE_URL` to a disposable database (e.g., `quiz_test`).
+- Keep services (Postgres) running before invoking pytest.
 
 ### Frontend Tests
 
@@ -308,9 +268,10 @@ E2E tests require the backend and frontend to be running:
    # Start MinIO if not running:
    minio server ~/minio-data --console-address ":9001"
    
-   # Terminal 2: Start backend
-   cd backend
-   cargo run
+   # Terminal 2: Start backend (FastAPI)
+   cd backend-python
+   source venv/bin/activate
+   uvicorn app.main:app --reload --port 8080
    
    # Terminal 3: Start frontend
    cd frontend
@@ -347,11 +308,11 @@ E2E tests require the backend and frontend to be running:
 
 ### Running All Tests
 
-**Backend (unit + integration):**
+**Backend (pytest):**
 ```bash
-cd backend
-export TEST_DATABASE_URL=postgres://quiz:quiz@localhost:5432/quiz_test
-cargo test
+cd backend-python
+source venv/bin/activate
+DATABASE_URL=postgresql+asyncpg://quiz:quiz@localhost:5432/quiz_test pytest
 ```
 
 **Frontend (unit + E2E):**
@@ -378,8 +339,8 @@ curl -f http://localhost:9000/minio/health/live || echo "❌ MinIO not running"
 # 4. MinIO bucket exists
 mc ls myminio/avatars || echo "❌ MinIO bucket missing (create with: mc mb myminio/avatars)"
 
-# 5. Backend compiles
-cd backend && cargo check || echo "❌ Backend has compilation errors"
+# 5. Backend tests pass (FastAPI)
+cd backend-python && source venv/bin/activate && pytest || echo "❌ Backend tests failing"
 
 # 6. Frontend dependencies installed
 cd frontend && npm list --depth=0 > /dev/null 2>&1 || echo "❌ Frontend dependencies missing (run: npm install)"
@@ -400,10 +361,10 @@ cd frontend && npm list --depth=0 > /dev/null 2>&1 || echo "❌ Frontend depende
 **"Migration failed":**
 - Ensure database exists and user has permissions
 - Check `DATABASE_URL` is correct
-- Try running migrations manually: `cargo sqlx migrate run`
+- Try running migrations manually: `cd backend-python && source venv/bin/activate && alembic upgrade head`
 
 **"Port already in use":**
-- Change `BACKEND_PORT` in `.env` or use: `BACKEND_PORT=8081 cargo run`
+- Change `BACKEND_PORT` in `.env` or start with: `uvicorn app.main:app --port 8081 --reload`
 - Find and kill process using port: `lsof -ti:8080 | xargs kill`
 
 ### Frontend Issues
@@ -447,8 +408,9 @@ cd frontend && npm list --depth=0 > /dev/null 2>&1 || echo "❌ Frontend depende
    minio server ~/minio-data --console-address ":9001"
    
    # Terminal 3: Backend
-   cd backend
-   cargo run
+   cd backend-python
+   source venv/bin/activate
+   uvicorn app.main:app --reload --port 8080
    
    # Terminal 4: Frontend
    cd frontend
@@ -461,14 +423,11 @@ cd frontend && npm list --depth=0 > /dev/null 2>&1 || echo "❌ Frontend depende
 
 3. **Run tests as needed:**
    ```bash
-   # Backend unit tests (fast, no dependencies)
-   cd backend && cargo test --lib
+   # Backend tests (requires database)
+   cd backend-python && source venv/bin/activate && pytest
    
-   # Frontend unit tests (fast, no dependencies)
+   # Frontend unit tests
    cd frontend && npm test
-   
-   # Backend integration tests (requires database)
-   cd backend && TEST_DATABASE_URL=postgres://quiz:quiz@localhost:5432/quiz_test cargo test --test '*'
    
    # Frontend E2E tests (requires all services)
    cd frontend && npm run test:e2e
@@ -483,7 +442,7 @@ When running without Docker:
 3. **Database:** Must create databases and users manually
 4. **MinIO:** Must start and configure manually
 5. **Environment:** Variables read from `.env` file or shell environment
-6. **Dependencies:** Must install Rust, Node.js, PostgreSQL, MinIO manually
+6. **Dependencies:** Must install Python, Node.js, PostgreSQL, MinIO manually
 
 ## Optional: Local LLM (Ollama)
 

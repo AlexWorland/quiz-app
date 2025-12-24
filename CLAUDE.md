@@ -9,34 +9,39 @@ A real-time multiplayer quiz application for multi-presenter events with live au
 1. **Traditional Mode**: Pre-written questions with AI-generated fake answers
 2. **Listen Only Mode**: AI generates questions entirely from live audio transcription
 
-The architecture uses a **Rust backend (Axum)** with WebSocket support for real-time updates, a **React frontend** with Tailwind CSS, and **PostgreSQL** for persistence.
+The architecture uses a **Python FastAPI backend** with WebSocket support for real-time updates, a **React frontend** with Tailwind CSS, and **PostgreSQL** for persistence.
 
 ## Build & Development Commands
 
-### Backend (Rust)
+### Backend (Python FastAPI)
 
 ```bash
-# Build the backend
-cd backend && cargo build
+# Setup virtual environment
+cd backend-python
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
 
 # Run development server (requires Docker for dependencies)
 docker-compose up -d postgres minio minio-init
-cargo run
+uvicorn app.main:app --reload --port 8080
 
 # Run tests
-docker compose -f docker-compose.test.yml run --rm --build -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend-test cargo test
+pytest -v
+
+# Run tests with coverage
+pytest --cov=app --cov-report=term-missing
 
 # Run specific test
-docker compose -f docker-compose.test.yml run --rm --build -e TEST_DATABASE_URL=postgres://quiz:quiz@postgres:5432/quiz_test backend-test cargo test test_name
-
-# Check code without building
-cargo check
+pytest tests/test_auth.py -v
 
 # Format code
-cargo fmt
+ruff format .
 
 # Lint code
-cargo clippy
+ruff check .
 ```
 
 ### Frontend (React/TypeScript)
@@ -265,11 +270,20 @@ docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run
 
 ### Frontend E2E Tests (Playwright)
 
+Docker (CI/default):
 ```bash
 cd frontend               # Required - tests must run from frontend directory
 docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:e2e
 docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:e2e:ui
 docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run test:e2e:headed
+```
+
+Local (no Docker; requires backend, frontend, and MinIO already running):
+```bash
+cd frontend
+npm run test:e2e
+npm run test:e2e:ui
+npm run test:e2e:headed
 ```
 
 **Test files** in `e2e/`:
@@ -280,7 +294,7 @@ docker compose -f docker-compose.test.yml run --rm --build frontend-test npm run
 - `fixtures/auth.ts` - Authentication helpers
 
 **Notes:**
-- E2E tests auto-start the dev server
+- E2E tests auto-start the dev server in Docker mode; local runs assume services are already up (see `docs/E2E_TESTING.md` or `RUNNING_WITHOUT_DOCKER.md`)
 - Some tests skip if backend is unavailable
 - Screenshots saved on failure in `test-results/`
 

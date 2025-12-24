@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trophy } from 'lucide-react'
+import { Trophy, RotateCcw } from 'lucide-react'
 import { SegmentLeaderboard } from '@/components/leaderboard/SegmentLeaderboard'
 import { MasterLeaderboard } from '@/components/leaderboard/MasterLeaderboard'
 import { Button } from '@/components/common/Button'
@@ -11,8 +11,10 @@ interface SegmentCompleteViewProps {
   eventLeaderboard: LeaderboardEntry[]
   segmentWinner?: LeaderboardEntry
   isPresenter: boolean
+  isHost?: boolean
   onShowOverallLeaderboard?: () => void
   onPassPresenter?: () => void
+  onResumeSegment?: () => void
 }
 
 export function SegmentCompleteView({
@@ -21,7 +23,9 @@ export function SegmentCompleteView({
   eventLeaderboard,
   segmentWinner,
   isPresenter,
-  onPassPresenter
+  isHost = false,
+  onPassPresenter,
+  onResumeSegment
 }: SegmentCompleteViewProps) {
   const [showingOverall, setShowingOverall] = useState(false)
 
@@ -69,6 +73,23 @@ export function SegmentCompleteView({
           <Button onClick={onPassPresenter} className="w-full">
             Pass Presenter Role
           </Button>
+        </div>
+      )}
+
+      {/* Host-only: Resume Segment */}
+      {isHost && onResumeSegment && (
+        <div className="mt-4">
+          <button
+            onClick={onResumeSegment}
+            className="flex items-center justify-center gap-2 w-full py-2 px-4 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 rounded-lg text-sm text-amber-300 hover:text-amber-200 transition"
+            title="Resume this segment if it was ended accidentally"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Resume Segment
+          </button>
+          <p className="text-xs text-gray-500 mt-1 text-center">
+            Use this if the segment was ended accidentally
+          </p>
         </div>
       )}
     </div>

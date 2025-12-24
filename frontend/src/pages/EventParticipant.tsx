@@ -1,8 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Pencil } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
+import { ChangeDisplayName } from '@/components/event/ChangeDisplayName'
+import { ReconnectionStatus } from '@/components/common/ReconnectionStatus'
 import { QuestionDisplay } from '@/components/quiz/QuestionDisplay'
 import { AnswerSelection } from '@/components/quiz/AnswerSelection'
 import { QuizResults, type AnswerDistribution, type LeaderboardEntry as QuizLeaderboardEntry } from '@/components/quiz/QuizResults'
@@ -17,6 +19,7 @@ import {
   getEvent,
   getSegmentLeaderboard,
   getMasterLeaderboard,
+  updateParticipantDisplayName,
   type Event,
   type LeaderboardEntry,
 } from '@/api/endpoints'
@@ -60,6 +63,13 @@ export function EventParticipantPage() {
   const [eventRankings, setEventRankings] = useState<LeaderboardEntry[]>([])
 
   const [participants, setParticipants] = useState<Participant[]>([])
+  const [joinStatus, setJoinStatus] = useState<'joined' | 'waiting_for_segment' | 'active_in_quiz' | 'segment_complete'>('joined')
+  const [infoMessage, setInfoMessage] = useState<string | null>(null)
+  const [isPresenterPaused, setIsPresenterPaused] = useState(false)
+  const [presenterPausedReason, setPresenterPausedReason] = useState<string | null>(null)
+  const [showNameChange, setShowNameChange] = useState(false)
+  const [displayName, setDisplayName] = useState<string>(user?.username ?? '')
+  const [participantId, setParticipantId] = useState<string | null>(null)
 
   // Quiz phase state for enhanced message handling
   const [currentPresenterId, setCurrentPresenterId] = useState<string | null>(null)
@@ -105,31 +115,68 @@ export function EventParticipantPage() {
     }
   }
 
-  const { isConnected, sendMessage } = useEventWebSocket({
+  const { isConnected, sendMessage, reconnection } = useEventWebSocket({
     eventId: eventId ?? '',
     onMessage: (msg: ServerMessage) => {
       if (msg.type === 'connected') {
         setParticipants(msg.participants)
+        if (user) {
+          const me = msg.participants.find((p) => p.id === user.id)
+          if (me?.join_status) {
+            setJoinStatus(me.join_status as typeof joinStatus)
+          }
+          if (me) {
+            setDisplayName(me.username)
+            setParticipantId(me.id)
+          }
+        }
       } else if (msg.type === 'participant_joined') {
-        setParticipants((prev) => [...prev, msg.user])
+        setParticipants((prev) => [...prev, { ...msg.user, online: true }])
+        if (user && msg.user.id === user.id && msg.user.join_status) {
+          setJoinStatus(msg.user.join_status as typeof joinStatus)
+        }
       } else if (msg.type === 'participant_left') {
-        setParticipants((prev) => prev.filter((p) => p.id !== msg.user_id))
+        setParticipants((prev) =>
+          prev.map((p) => (p.id === msg.user_id ? { ...p, online: msg.online ?? false } : p))
+        )
+      } else if (msg.type === 'participant_name_changed') {
+        setParticipants((prev) =>
+          prev.map((p) => (p.id === msg.user_id ? { ...p, username: msg.new_name } : p))
+        )
+        // Update local display name if it's the current user
+        if (user && msg.user_id === user.id) {
+          setDisplayName(msg.new_name)
+        }
       } else if (msg.type === 'game_started') {
         setGameStarted(true)
         setShowResults(false)
         setHasAnswered(false)
         setUserAnswer(undefined)
         setPointsEarned(undefined)
+        setIsPresenterPaused(false)
+        setPresenterPausedReason(null)
       } else if (msg.type === 'question') {
+        const isSameQuestion = currentQuestionId === msg.question_id
+        const shouldKeepAnswerState = isPresenterPaused && isSameQuestion && hasAnswered
+
         setCurrentQuestionId(msg.question_id)
         setQuestionText(msg.text)
         setAnswers(msg.answers)
         setTimeLimit(msg.time_limit)
         setQuestionStartedAt(new Date())
         setShowResults(false)
-        setHasAnswered(false)
-        setUserAnswer(undefined)
-        setPointsEarned(undefined)
+
+        if (!shouldKeepAnswerState) {
+          setHasAnswered(false)
+          setUserAnswer(undefined)
+          setPointsEarned(undefined)
+        }
+
+        setIsPresenterPaused(false)
+        setInfoMessage(null)
+        if (joinStatus === 'waiting_for_segment') {
+          setJoinStatus('active_in_quiz')
+        }
       } else if (msg.type === 'reveal') {
         setResults({
           correctAnswer: msg.correct_answer,
@@ -150,11 +197,37 @@ export function EventParticipantPage() {
       } else if (msg.type === 'presenter_changed') {
         setCurrentPresenterId(msg.new_presenter_id)
         setCurrentPresenterName(msg.new_presenter_name)
+        setIsPresenterPaused(false)
 
         // If I'm the new presenter, redirect to host view
         if (user && msg.new_presenter_id === user.id) {
           navigate(`/events/${eventId}/host/${msg.segment_id}`)
         }
+      } else if (msg.type === 'phase_changed') {
+        const paused = msg.phase === 'presenter_paused'
+        setIsPresenterPaused(paused)
+        if (paused) {
+          setQuestionStartedAt(null)
+          setInfoMessage('The quiz is paused while the presenter reconnects.')
+        } else if (msg.phase === 'showing_question') {
+          setInfoMessage(null)
+          setPresenterPausedReason(null)
+        }
+      } else if (msg.type === 'presenter_paused') {
+        setIsPresenterPaused(true)
+        setQuestionStartedAt(null)
+        setPresenterPausedReason(msg.reason ?? null)
+        if (msg.reason === 'all_disconnected') {
+          setInfoMessage('All participants disconnected. Waiting for someone to rejoin.')
+        } else if (msg.reason === 'no_participants') {
+          setInfoMessage('No participants are connected. Please wait for participants before resuming.')
+        } else {
+          setInfoMessage('The presenter disconnected. Waiting for them to reconnect or be reassigned.')
+        }
+      } else if (msg.type === 'presenter_override_needed') {
+        setIsPresenterPaused(true)
+        setPresenterPausedReason('presenter_disconnected')
+        setInfoMessage('Host is selecting a new presenter. Please wait.')
       } else if (msg.type === 'segment_complete') {
         setSegmentResults({
           segment_id: msg.segment_id,
@@ -167,6 +240,9 @@ export function EventParticipantPage() {
         })
         setShowResults(false)
         setCurrentQuestionId(null)
+        setInfoMessage(null)
+        setIsPresenterPaused(false)
+        setPresenterPausedReason(null)
       } else if (msg.type === 'event_complete') {
         setFinalResults({
           event_id: msg.event_id,
@@ -175,6 +251,20 @@ export function EventParticipantPage() {
           segment_winners: msg.segment_winners,
         })
         setGameStarted(false)
+        setInfoMessage(null)
+        setIsPresenterPaused(false)
+        setPresenterPausedReason(null)
+      } else if (msg.type === 'error') {
+        if (msg.message.toLowerCase().includes('next question')) {
+          setInfoMessage('You joined mid-question. You can answer starting with the next question.')
+          setJoinStatus('waiting_for_segment')
+        } else if (msg.message.toLowerCase().includes('paused')) {
+          setInfoMessage(msg.message)
+          setIsPresenterPaused(true)
+        } else if (msg.message.toLowerCase().includes('time expired')) {
+          setInfoMessage('Time expired. Your answer was not recorded.')
+          setHasAnswered(false)
+        }
       }
     },
   })
@@ -182,6 +272,10 @@ export function EventParticipantPage() {
   const handleAnswerSelect = (answer: string, responseTimeMs: number) => {
     if (!currentQuestionId) return
     if (!user || hasAnswered) return
+    if (joinStatus === 'waiting_for_segment') {
+        return
+    }
+    if (isPresenterPaused) return
 
     sendMessage({
       type: 'answer',
@@ -192,6 +286,14 @@ export function EventParticipantPage() {
 
     setHasAnswered(true)
     setUserAnswer(answer)
+  }
+
+  const handleNameChange = async (newName: string) => {
+    if (!eventId || !participantId) {
+      throw new Error('Missing event or participant information')
+    }
+    await updateParticipantDisplayName(eventId, participantId, newName)
+    setDisplayName(newName)
   }
 
   const hasActiveQuestion = !!currentQuestionId && !!questionStartedAt
@@ -225,6 +327,15 @@ export function EventParticipantPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-950 to-dark-900">
+      {/* Reconnection Status Overlay */}
+      <ReconnectionStatus
+        isReconnecting={reconnection.isReconnecting}
+        attemptCount={reconnection.attemptCount}
+        nextAttemptSeconds={reconnection.nextAttemptSeconds}
+        hasGivenUp={reconnection.hasGivenUp}
+        onManualRetry={() => window.location.reload()}
+      />
+      
       <div className="max-w-6xl mx-auto p-6 md:p-8 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -254,7 +365,16 @@ export function EventParticipantPage() {
             {user && (
               <>
                 <div className="text-sm text-gray-500 mb-1">You are</div>
-                <div className="text-white font-semibold">{user.username}</div>
+                <div className="flex items-center gap-2 justify-end">
+                  <div className="text-white font-semibold">{displayName}</div>
+                  <button
+                    onClick={() => setShowNameChange(true)}
+                    className="text-gray-400 hover:text-cyan-400 transition"
+                    title="Change display name"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                </div>
                 {myRank && (
                   <div className="text-xs text-gray-400 mt-1">
                     Current overall rank: #{myRank}
@@ -288,6 +408,12 @@ export function EventParticipantPage() {
             Players connected: {participants.length}
           </div>
         </div>
+
+        {isPresenterPaused && (
+          <div className="bg-amber-900/40 border border-amber-500/40 rounded-lg p-3 text-sm text-amber-100">
+            The quiz is paused while the presenter reconnects or the host selects a replacement. You can keep this page open—questions will resume automatically.
+          </div>
+        )}
 
         {/* Segment Complete View */}
         {_segmentResults && !_finalResults && (
@@ -341,6 +467,11 @@ export function EventParticipantPage() {
 
             {hasActiveQuestion && (
               <div className="space-y-4">
+                {infoMessage && (
+                  <div className="bg-amber-900/30 border border-amber-500/50 rounded-lg p-3 text-amber-100 text-sm">
+                    {infoMessage}
+                  </div>
+                )}
                 <QuestionDisplay
                   questionId={currentQuestionId!}
                   text={questionText}
@@ -352,7 +483,7 @@ export function EventParticipantPage() {
                   onSelect={handleAnswerSelect}
                   timeLimit={timeLimit}
                   questionStartedAt={questionStartedAt ?? new Date()}
-                  disabled={hasAnswered}
+                  disabled={hasAnswered || joinStatus === 'waiting_for_segment' || isPresenterPaused}
                 />
                 {hasAnswered && !showResults && (
                   <p className="text-sm text-gray-400">
@@ -395,6 +526,15 @@ export function EventParticipantPage() {
             </div>
           </div>
         </div>
+
+        {/* Change Display Name Modal */}
+        {showNameChange && (
+          <ChangeDisplayName
+            currentName={displayName}
+            onNameChange={handleNameChange}
+            onClose={() => setShowNameChange(false)}
+          />
+        )}
       </div>
     </div>
   )

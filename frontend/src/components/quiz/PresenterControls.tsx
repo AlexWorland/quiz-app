@@ -10,6 +10,7 @@ interface PresenterControlsProps {
   onShowLeaderboard: () => void
   onNextQuestion: () => void
   onEndQuiz: () => void
+  disabled?: boolean
 }
 
 export function PresenterControls({
@@ -20,7 +21,8 @@ export function PresenterControls({
   onRevealAnswer,
   onShowLeaderboard,
   onNextQuestion,
-  onEndQuiz
+  onEndQuiz,
+  disabled = false
 }: PresenterControlsProps) {
   const isLastQuestion = questionIndex >= totalQuestions - 1
 
@@ -35,13 +37,14 @@ export function PresenterControls({
           onClick={onRevealAnswer}
           variant={allAnswered ? 'primary' : 'secondary'}
           className="w-full"
+          disabled={disabled}
         >
           {allAnswered ? 'Reveal Answer (All answered)' : 'Reveal Answer'}
         </Button>
       )}
 
       {phase === 'revealing_answer' && (
-        <Button onClick={onShowLeaderboard} className="w-full">
+        <Button onClick={onShowLeaderboard} className="w-full" disabled={disabled}>
           Show Leaderboard
         </Button>
       )}
@@ -50,6 +53,7 @@ export function PresenterControls({
         <Button
           onClick={isLastQuestion ? onEndQuiz : onNextQuestion}
           className="w-full"
+          disabled={disabled}
         >
           {isLastQuestion ? 'End Quiz' : 'Next Question'}
         </Button>

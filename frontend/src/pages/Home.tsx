@@ -33,55 +33,36 @@ export function HomePage() {
         <div className="bg-dark-900 rounded-lg shadow-xl p-8 border border-dark-700 mb-8">
           <h2 className="text-2xl font-bold text-white mb-4">Welcome, {user?.username}!</h2>
           <p className="text-gray-400 mb-6">
-            You're logged in as a {user?.role}. Ready to create engaging presentations?
+            Ready to create or join engaging quiz events?
           </p>
 
-          {user?.role === 'participant' && (
-            <div className="space-y-3">
-              <h3 className="text-xl font-semibold text-white">Participant Features</h3>
-              <ul className="text-gray-400 space-y-2 mb-6">
-                <li>✓ Join quiz events via QR code or join code</li>
-                <li>✓ Participate in segment quizzes</li>
-                <li>✓ Play Flappy Bird while waiting</li>
-                <li>✓ View your scores and leaderboards</li>
-              </ul>
+          <div className="space-y-3">
+            <ul className="text-gray-400 space-y-2 mb-6">
+              <li>✓ Create events with multiple presentation segments</li>
+              <li>✓ Join quiz events via QR code or join code</li>
+              <li>✓ Enable audio recording and AI question generation</li>
+              <li>✓ Participate in segment quizzes and view leaderboards</li>
+            </ul>
 
-              <div className="mt-8 pt-6 border-t border-dark-700">
-                <Button
-                  onClick={() => navigate('/join')}
-                  variant="primary"
-                  className="flex items-center gap-2 text-lg py-3"
-                >
-                  <LogIn size={20} />
-                  Join an Event
-                </Button>
-              </div>
+            <div className="mt-8 pt-6 border-t border-dark-700 flex gap-4">
+              <Button
+                onClick={() => navigate('/events')}
+                variant="primary"
+                className="flex items-center gap-2 text-lg py-3"
+              >
+                <Zap size={20} />
+                My Events
+              </Button>
+              <Button
+                onClick={() => navigate('/join')}
+                variant="secondary"
+                className="flex items-center gap-2 text-lg py-3"
+              >
+                <LogIn size={20} />
+                Join an Event
+              </Button>
             </div>
-          )}
-
-          {user?.role === 'presenter' && (
-            <div className="space-y-3">
-              <h3 className="text-xl font-semibold text-white mb-6">Presenter Features</h3>
-              <ul className="text-gray-400 space-y-2 mb-6">
-                <li>✓ Create events with multiple presentation segments</li>
-                <li>✓ Enable audio recording and AI question generation</li>
-                <li>✓ Track segment progress with real-time status</li>
-                <li>✓ Control quiz flow and view results</li>
-                <li>✓ Generate join codes for participants</li>
-              </ul>
-
-              <div className="mt-8 pt-6 border-t border-dark-700">
-                <Button
-                  onClick={() => navigate('/events')}
-                  variant="primary"
-                  className="flex items-center gap-2 text-lg py-3"
-                >
-                  <Zap size={20} />
-                  Manage Events
-                </Button>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -96,11 +77,9 @@ export function HomePage() {
           <div className="bg-dark-900 rounded-lg p-6 border border-dark-700">
             <h3 className="text-lg font-semibold text-white mb-2">Create Event</h3>
             <p className="text-gray-400 text-sm mb-4">Start a new interactive event with segments</p>
-            {user?.role === 'presenter' && (
-              <Button onClick={() => navigate('/events')} variant="secondary" size="sm">
-                Create Now
-              </Button>
-            )}
+            <Button onClick={() => navigate('/events')} variant="secondary" size="sm">
+              Create Now
+            </Button>
           </div>
 
           <div className="bg-dark-900 rounded-lg p-6 border border-dark-700">
@@ -108,11 +87,9 @@ export function HomePage() {
             <p className="text-gray-400 text-sm mb-4">
               Record audio and let AI generate quiz questions automatically.
             </p>
-            {user?.role === 'presenter' && (
-              <Button onClick={() => navigate('/events')} variant="secondary" size="sm">
-                Go to Events
-              </Button>
-            )}
+            <Button onClick={() => navigate('/events')} variant="secondary" size="sm">
+              Go to Events
+            </Button>
           </div>
 
           <div className="bg-dark-900 rounded-lg p-6 border border-dark-700">

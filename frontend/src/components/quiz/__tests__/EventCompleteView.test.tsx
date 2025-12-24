@@ -2,11 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { EventCompleteView } from '../EventCompleteView';
 
-// Mock lucide-react icons
-vi.mock('lucide-react', () => ({
-  Crown: () => <div data-testid="crown-icon">Crown</div>,
-}));
-
 // Mock child components
 vi.mock('@/components/leaderboard/MasterLeaderboard', () => ({
   MasterLeaderboard: ({ rankings }: { rankings: any[] }) => (
@@ -120,6 +115,60 @@ describe('EventCompleteView', () => {
     );
 
     expect(screen.getByText('Master Leaderboard: 0 entries')).toBeInTheDocument();
+  });
+
+  it('should display no champion message when all scores are zero', () => {
+    const zeroScoreLeaderboard = [
+      { rank: 1, user_id: '1', username: 'Player1', score: 0 },
+      { rank: 2, user_id: '2', username: 'Player2', score: 0 },
+    ];
+
+    render(
+      <EventCompleteView
+        finalLeaderboard={zeroScoreLeaderboard}
+        winner={zeroScoreLeaderboard[0]}
+        segmentWinners={[]}
+      />
+    );
+
+    expect(screen.getByText('No Champion This Event!')).toBeInTheDocument();
+    expect(screen.getByText(/All participants scored 0 points/i)).toBeInTheDocument();
+    expect(screen.queryByText('is the Champion')).not.toBeInTheDocument();
+  });
+
+  it('should not show crown icon when all scores are zero', () => {
+    const zeroScoreLeaderboard = [
+      { rank: 1, user_id: '1', username: 'Player1', score: 0 },
+      { rank: 2, user_id: '2', username: 'Player2', score: 0 },
+    ];
+
+    render(
+      <EventCompleteView
+        finalLeaderboard={zeroScoreLeaderboard}
+        winner={zeroScoreLeaderboard[0]}
+        segmentWinners={[]}
+      />
+    );
+
+    expect(screen.queryByTestId('crown-icon')).not.toBeInTheDocument();
+  });
+
+  it('should show winner when not all scores are zero', () => {
+    const mixedLeaderboard = [
+      { rank: 1, user_id: '1', username: 'Winner', score: 50 },
+      { rank: 2, user_id: '2', username: 'Player2', score: 0 },
+    ];
+
+    render(
+      <EventCompleteView
+        finalLeaderboard={mixedLeaderboard}
+        winner={mixedLeaderboard[0]}
+        segmentWinners={[]}
+      />
+    );
+
+    expect(screen.getByText('Winner is the Champion')).toBeInTheDocument();
+    expect(screen.queryByText('No Champion This Event!')).not.toBeInTheDocument();
   });
 });
 

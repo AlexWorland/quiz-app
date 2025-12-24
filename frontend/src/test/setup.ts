@@ -152,3 +152,92 @@ Object.defineProperty(global.navigator, 'mediaDevices', {
   writable: true,
   configurable: true,
 });
+
+// Global mock for lucide-react icons
+// Creates mock components with data-testid for testing
+vi.mock('lucide-react', () => {
+  const createMockIcon = (name: string) => {
+    const IconComponent = (props: any) => {
+      const { createElement } = require('react');
+      const testId = name.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '') + '-icon';
+      return createElement('div', { 'data-testid': testId, ...props }, name);
+    };
+    IconComponent.displayName = name;
+    return IconComponent;
+  };
+
+  // All lucide-react icons used in the application
+  return {
+    AlertCircle: createMockIcon('AlertCircle'),
+    AlertTriangle: createMockIcon('AlertTriangle'),
+    ArrowLeft: createMockIcon('ArrowLeft'),
+    ArrowRight: createMockIcon('ArrowRight'),
+    Award: createMockIcon('Award'),
+    Book: createMockIcon('Book'),
+    Camera: createMockIcon('Camera'),
+    Check: createMockIcon('Check'),
+    CheckCircle: createMockIcon('CheckCircle'),
+    CheckCircle2: createMockIcon('CheckCircle2'),
+    ChevronDown: createMockIcon('ChevronDown'),
+    ChevronLeft: createMockIcon('ChevronLeft'),
+    ChevronRight: createMockIcon('ChevronRight'),
+    Circle: createMockIcon('Circle'),
+    Clock: createMockIcon('Clock'),
+    Copy: createMockIcon('Copy'),
+    Crown: createMockIcon('Crown'),
+    Download: createMockIcon('Download'),
+    Edit: createMockIcon('Edit'),
+    Edit2: createMockIcon('Edit2'),
+    ExternalLink: createMockIcon('ExternalLink'),
+    Eye: createMockIcon('Eye'),
+    EyeOff: createMockIcon('EyeOff'),
+    FileText: createMockIcon('FileText'),
+    Grip: createMockIcon('Grip'),
+    Hand: createMockIcon('Hand'),
+    Info: createMockIcon('Info'),
+    Loader: createMockIcon('Loader'),
+    Loader2: createMockIcon('Loader2'),
+    Lock: createMockIcon('Lock'),
+    LogIn: createMockIcon('LogIn'),
+    LogOut: createMockIcon('LogOut'),
+    Medal: createMockIcon('Medal'),
+    Menu: createMockIcon('Menu'),
+    Mic: createMockIcon('Mic'),
+    MicOff: createMockIcon('MicOff'),
+    Minus: createMockIcon('Minus'),
+    Moon: createMockIcon('Moon'),
+    Pause: createMockIcon('Pause'),
+    Pencil: createMockIcon('Pencil'),
+    Play: createMockIcon('Play'),
+    Plus: createMockIcon('Plus'),
+    QrCode: createMockIcon('QrCode'),
+    Radio: createMockIcon('Radio'),
+    RefreshCw: createMockIcon('RefreshCw'),
+    RotateCcw: createMockIcon('RotateCcw'),
+    RotateCw: createMockIcon('RotateCw'),
+    Save: createMockIcon('Save'),
+    Search: createMockIcon('Search'),
+    Send: createMockIcon('Send'),
+    Settings: createMockIcon('Settings'),
+    SkipForward: createMockIcon('SkipForward'),
+    Smartphone: createMockIcon('Smartphone'),
+    Square: createMockIcon('Square'),
+    Star: createMockIcon('Star'),
+    Sun: createMockIcon('Sun'),
+    Trash2: createMockIcon('Trash2'),
+    TrendingDown: createMockIcon('TrendingDown'),
+    TrendingUp: createMockIcon('TrendingUp'),
+    Trophy: createMockIcon('Trophy'),
+    Unlock: createMockIcon('Unlock'),
+    Upload: createMockIcon('Upload'),
+    User: createMockIcon('User'),
+    UserCog: createMockIcon('UserCog'),
+    Users: createMockIcon('Users'),
+    Volume2: createMockIcon('Volume2'),
+    Wifi: createMockIcon('Wifi'),
+    WifiOff: createMockIcon('WifiOff'),
+    X: createMockIcon('X'),
+    XCircle: createMockIcon('XCircle'),
+    Zap: createMockIcon('Zap'),
+  };
+});

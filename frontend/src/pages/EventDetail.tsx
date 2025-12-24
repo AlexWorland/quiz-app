@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Plus, Trash2, Edit2, ArrowLeft } from 'lucide-react'
-import QRCode from 'qrcode.react'
 import { Button } from '../components/common/Button'
+import { JoinLockToggle } from '../components/event'
+import { ExtendedLockReminder } from '../components/event/ExtendedLockReminder'
+import { QRCodeDisplay } from '../components/event/QRCodeDisplay'
 import { Input } from '../components/common/Input'
 import { getEvent, createSegment, deleteSegment } from '../api/endpoints'
 import type { Event, Segment, CreateSegmentRequest } from '../api/endpoints'
@@ -19,6 +21,7 @@ export function EventDetailPage() {
     presenter_name: '',
     title: '',
   })
+  const [showExtendedLockReminder, setShowExtendedLockReminder] = useState(true)
 
   useEffect(() => {
     loadEvent()
@@ -136,15 +139,31 @@ export function EventDetailPage() {
               <div className="text-lg text-white">{segments.length}</div>
             </div>
           </div>
-          <div className="flex flex-col items-center justify-center gap-2">
-            <div className="text-xs text-gray-400 mb-1">Participants can scan to join</div>
-            <div className="bg-white p-2 rounded-md">
-              <QRCode
-                value={`${window.location.origin}/join?code=${event.join_code}`}
-                size={96}
-                bgColor="#ffffff"
-              />
+          <div className="flex flex-col items-center justify-center">
+            <QRCodeDisplay
+              joinCode={event.join_code}
+              isLocked={event.join_locked}
+              size={120}
+            />
+          </div>
+        </div>
+
+        {/* Join Lock Controls */}
+        <div className="bg-dark-900 rounded-lg p-4 mb-8 border border-dark-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-white">Participant Joining</h3>
+              <p className="text-xs text-gray-400 mt-1">
+                {event.join_locked
+                  ? 'New participants cannot join. Existing participants can still rejoin.'
+                  : 'New participants can join via QR code or event code.'}
+              </p>
             </div>
+            <JoinLockToggle
+              eventId={event.id}
+              initialLocked={event.join_locked}
+              onLockChange={(locked) => setEvent(prev => prev ? { ...prev, join_locked: locked } : prev)}
+            />
           </div>
         </div>
 
@@ -250,6 +269,21 @@ export function EventDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Extended Lock Reminder - Fixed Position Overlay */}
+      {event?.join_locked && event.join_locked_at && showExtendedLockReminder && (
+        <ExtendedLockReminder
+          eventId={event.id}
+          lockedAt={new Date(event.join_locked_at)}
+          onUnlock={async () => {
+            // Use the same unlock logic as JoinLockToggle
+            const { unlockEventJoin } = await import('../api/endpoints')
+            await unlockEventJoin(event.id)
+            setEvent(prev => prev ? { ...prev, join_locked: false, join_locked_at: null } : prev)
+          }}
+          onDismiss={() => setShowExtendedLockReminder(false)}
+        />
+      )}
     </div>
   )
 }

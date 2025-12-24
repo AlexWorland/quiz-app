@@ -11,10 +11,10 @@ This document contains user stories for the quiz application, organized by featu
 **I want to** scan a QR code to join the event  
 **So that** I can enter the session without typing anything.
 
-### User Story: Required QR Scan
-**As** the system  
-**I require** all users to join via QR code  
-**So that** access is limited to people physically present.
+### User Story: Primary QR Scan Entry
+**As** the system
+**I want** QR code scanning to be the primary join method with manual code as fallback
+**So that** access is optimized for people physically present while remaining accessible.
 
 ### User Story: Display Join QR
 **As** the presenter  
@@ -40,15 +40,30 @@ This document contains user stories for the quiz application, organized by featu
 
 ## Identity & Rejoining
 
-### User Story: Name Selection After Scan
-**As a** participant  
-**I want to** choose my display name after scanning the QR code  
+### User Story: Enter Display Name on Join
+**As a** participant
+**I want to** enter my display name when joining an event
 **So that** I am identifiable on leaderboards.
 
-### User Story: Prevent Duplicate Players
-**As** the system  
-**I want to** prevent the same device from joining the session multiple times  
-**So that** scores remain fair.
+### User Story: Select Avatar on Join
+**As a** participant
+**I want to** select an avatar (emoji or preset) on the same screen where I enter my name
+**So that** I have a visual identity in the event.
+
+### User Story: Duplicate Name Handling
+**As** the system
+**I want to** append numbers to duplicate display names (e.g., "Alex", "Alex 2", "Alex 3")
+**So that** multiple participants can use similar names without confusion.
+
+### User Story: Change Display Name
+**As a** participant
+**I want to** change my display name at any time during the event
+**So that** I can correct typos or update my identity.
+
+### User Story: Prevent Duplicate Device Sessions
+**As** the system
+**I want to** prevent the same device from having multiple active sessions in one event
+**So that** scores remain fair and each device has one identity per event.
 
 ### User Story: Rejoin via QR
 **As a** participant  
@@ -56,24 +71,24 @@ This document contains user stories for the quiz application, organized by featu
 **So that** I can rejoin with my existing score and role.
 
 ### User Story: Device Identity Binding
-**As** the system  
-**I want to** associate a QR join with a device/session token  
-**So that** rejoining restores state automatically.
+**As** the system
+**I want to** track participants by device ID (not username) throughout the event
+**So that** score and state are preserved even if they change their display name.
 
-### Edge Case: Username Already Taken
-**As a** participant  
-**I want** clear feedback when my chosen display name is already taken by another participant  
-**So that** I can choose a different name and still join quickly.
+### Edge Case: Same User Already in Event
+**As a** participant
+**I want** clear feedback when I try to join an event I'm already participating in
+**So that** I understand I'm already connected and can return to my session.
 
 ### Edge Case: Rejoin After Event Ended
 **As a** participant  
 **I want** a clear message when I try to rejoin an event that has already ended  
 **So that** I understand why I can't reconnect and don't keep trying.
 
-### Edge Case: Device Identity Changes Mid-Session
-**As** the system  
-**I want to** handle scenarios where a device's identity token becomes invalid mid-session (e.g., browser storage cleared)  
-**So that** the participant can re-authenticate without losing their score.
+### Edge Case: Device Identity Lost Mid-Session
+**As** the system
+**I want to** handle scenarios where a device's identity token becomes invalid mid-session (e.g., browser storage cleared)
+**So that** the participant can re-enter their name and rejoin without losing their score.
 
 ---
 
@@ -119,8 +134,8 @@ This document contains user stories for the quiz application, organized by featu
 **So that** additional participants can enter.
 
 ### User Story: View Joined Participants
-**As** the presenter  
-**I want to** see a real-time list and count of participants who joined via QR  
+**As** the presenter
+**I want to** see a real-time list and count of participants who have joined
 **So that** I know when to start.
 
 ### Edge Case: Lock QR While Participant Mid-Scan
@@ -138,8 +153,9 @@ This document contains user stories for the quiz application, organized by featu
 ## Quiz Flow (Aligned with QR Entry)
 
 ### User Story: Prevent Answering Before Join
-**As** the system  
-**I want to** ensure only users who successfully joined via QR can submit quiz answers.
+**As** the system
+**I want to** ensure only users who successfully joined the event can submit quiz answers
+**So that** only legitimate participants can affect the quiz results.
 
 ### User Story: Join State Awareness
 **As a** participant  
@@ -161,9 +177,9 @@ This document contains user stories for the quiz application, organized by featu
 ## Scoring & Leaderboards
 
 ### User Story: Leaderboard Includes Only Joined Players
-**As a** participant  
-**I want** the leaderboard to include only players who joined via QR  
-**So that** rankings are accurate.
+**As a** participant
+**I want** the leaderboard to include only players who successfully joined the event
+**So that** rankings are accurate and limited to actual participants.
 
 ### User Story: Late Join Visibility
 **As a** participant  
@@ -188,25 +204,55 @@ This document contains user stories for the quiz application, organized by featu
 
 ## Presenter Rotation
 
-### User Story: QR Remains Active Across Presenter Changes
-**As** the system  
-**I want** the QR code to remain valid when the presenter role is passed  
-**So that** the session is continuous.
+### User Story: Admin Picks First Presenter
+**As an** admin
+**I want to** select the first presenter from the joined participants
+**So that** the event can begin with the right person presenting.
 
-### User Story: Presenter Role Transfer Without Rejoin
-**As a** participant  
-**I want to** become the presenter without re-scanning the QR code  
-**So that** role changes are seamless.
+### User Story: Presenter Picks Next Presenter
+**As a** presenter
+**I want to** select the next presenter after my segment quiz completes
+**So that** the event flows naturally without admin intervention.
+
+### User Story: Admin Override Presenter Selection
+**As an** admin
+**I want to** override presenter selection at any time
+**So that** I can correct mistakes or handle unexpected situations.
+
+### User Story: Automatic Presenter Promotion
+**As** the system
+**I want to** automatically promote the selected participant to presenter
+**So that** they gain presenter controls for their segment.
+
+### User Story: Automatic Presenter Demotion
+**As** the system
+**I want to** automatically demote the current presenter to participant after they select the next presenter
+**So that** only one presenter is active at a time.
+
+### User Story: QR Remains Active Across Presenter Changes
+**As** the system
+**I want** the QR code to remain valid when the presenter role is passed
+**So that** the session is continuous and late joiners can still enter.
+
+### User Story: Seamless Role Transition
+**As a** participant being promoted to presenter
+**I want** my view to automatically switch to presenter mode
+**So that** the transition is smooth without re-scanning or refreshing.
 
 ### Edge Case: Pass Presenter to Disconnected Participant
-**As** the presenter  
-**I want** feedback when I attempt to pass the presenter role to a participant who has disconnected  
+**As a** presenter
+**I want** feedback when I attempt to pass the presenter role to a participant who has disconnected
 **So that** I can choose an active participant instead.
 
-### Edge Case: All Potential Presenters Disconnect
-**As** the system  
-**I want to** handle scenarios where all designated presenters disconnect mid-event  
-**So that** the event can be paused or a recovery path is available.
+### Edge Case: All Participants Disconnect Before Selection
+**As** the system
+**I want to** handle scenarios where all participants disconnect before the next presenter can be selected
+**So that** the event can be paused until participants rejoin.
+
+### Edge Case: Presenter Disconnects Before Selecting Next
+**As** the system
+**I want to** allow the admin to select the next presenter if the current presenter disconnects
+**So that** the event can continue.
 
 ---
 
@@ -233,9 +279,91 @@ This document contains user stories for the quiz application, organized by featu
 **So that** I know to wait for re-joins before continuing.
 
 ### Edge Case: Multiple Rapid Resume Attempts
-**As** the system  
-**I want to** handle multiple resume button clicks in quick succession  
+**As** the system
+**I want to** handle multiple resume button clicks in quick succession
 **So that** the event state doesn't become corrupted or inconsistent.
+
+---
+
+## Segment Flow & Leaderboards
+
+### User Story: Segment Quiz After Presentation
+**As a** presenter
+**I want** the quiz for my segment to start after I finish presenting
+**So that** participants answer questions while the content is fresh.
+
+### User Story: Segment Leaderboard Display
+**As** the system
+**I want to** display the segment leaderboard after each segment quiz completes
+**So that** participants see their progress before the next presenter takes over.
+
+### User Story: Presenter Selection After Leaderboard
+**As a** presenter
+**I want to** select the next presenter only after the segment leaderboard is shown
+**So that** participants have time to see their scores.
+
+### Edge Case: No Questions Generated for Segment
+**As** the system
+**I want to** handle segments where no quiz questions were generated
+**So that** the event can continue to the next presenter without errors.
+
+---
+
+## Mega Quiz & Event Completion
+
+### User Story: Mega Quiz After Last Segment
+**As** the system
+**I want to** trigger a mega quiz after the last presenter's segment completes
+**So that** participants are tested on content from all presentations.
+
+### User Story: Mega Quiz Questions from All Segments
+**As** the system
+**I want** the mega quiz to include questions generated from every segment
+**So that** the final quiz covers the entire event.
+
+### User Story: Final Leaderboard Display
+**As** the system
+**I want to** display the final cumulative leaderboard after the mega quiz
+**So that** participants see their overall performance across all segments.
+
+### Edge Case: Mega Quiz with Only One Segment
+**As** the system
+**I want to** handle events with only one presenter gracefully
+**So that** the mega quiz works even with limited content.
+
+### Edge Case: Participants Leave Before Mega Quiz
+**As** the system
+**I want to** include all participants in the final leaderboard even if they left before the mega quiz
+**So that** their earlier segment scores are still counted.
+
+---
+
+## Data Export & Persistence
+
+### User Story: Event Data Persistence
+**As** the system
+**I want to** save all event data to the database after completion
+**So that** event history is preserved.
+
+### User Story: Export Event Results to File
+**As an** admin
+**I want** the system to export quiz results to a file when the event ends
+**So that** I have a record of questions, answers, and leaderboards.
+
+### User Story: Export Format Options
+**As an** admin
+**I want to** choose export format (JSON or CSV)
+**So that** I can use the data in my preferred tools.
+
+### User Story: Export Includes All Data
+**As an** admin
+**I want** the export to include all quiz questions, correct answers, participant answers, and leaderboards
+**So that** I have complete event documentation.
+
+### Edge Case: Export Fails Mid-Process
+**As** the system
+**I want to** retry failed exports and notify the admin
+**So that** data is not lost due to temporary failures.
 
 ---
 
@@ -256,10 +384,10 @@ This document contains user stories for the quiz application, organized by featu
 **I want** temporary network loss to not remove me from the session
 **So that** my score is preserved.
 
-### User Story: Handle Duplicate Join Attempts
+### User Story: Handle Duplicate Device Join Attempts
 **As a** participant
-**I want** to be prevented from joining the same event multiple times from different devices
-**So that** I don't create multiple entries and confuse the scoring system.
+**I want** clear feedback when I try to join an event from a device that's already connected
+**So that** I understand my session is already active on this device.
 
 ### User Story: Invalid Event Code Handling
 **As a** participant
@@ -291,10 +419,10 @@ This document contains user stories for the quiz application, organized by featu
 **I want** my session to be recoverable if I accidentally close my browser tab during a quiz
 **So that** I don't lose my progress and scores.
 
-### User Story: Multiple Simultaneous Events
-**As a** system
-**I want** to prevent users from joining multiple events simultaneously
-**So that** scoring and state management remain consistent.
+### User Story: Single Device Single Event
+**As** the system
+**I want** each device to only participate in one event at a time
+**So that** participants focus on their current event and device identity remains clear.
 
 ### User Story: Invalid QR Code Scan
 **As a** participant
@@ -305,54 +433,54 @@ This document contains user stories for the quiz application, organized by featu
 
 ## Event Management
 
-### User Story: Create Event as Host
-**As a** host  
-**I want to** startup the application and create an event  
+### User Story: Create Event Button Visible to All
+**As a** visitor
+**I want to** see the "Create Event" button even if I'm not logged in
+**So that** I know hosting events is possible.
+
+### User Story: Account Required for Event Creation
+**As** the system
+**I want to** prompt visitors to create an admin account or log in when they try to create an event
+**So that** events have an accountable owner.
+
+### User Story: Create Event as Admin
+**As an** admin
+**I want to** create an event after logging in
 **So that** others can join and participate in my quiz event.
 
 ### Edge Case: Create Event with Empty Title
-**As** the system  
-**I want to** prevent event creation with an empty or whitespace-only title  
+**As** the system
+**I want to** prevent event creation with an empty or whitespace-only title
 **So that** all events have meaningful identifiers.
 
 ### Edge Case: Create Event While Another Event Active
-**As a** host  
-**I want** to be able to create a new event even if I have another active event  
+**As an** admin
+**I want** to be able to create a new event even if I have another active event
 **So that** I can prepare future events without ending current ones.
 
 ### Edge Case: Event Creation with Special Characters
-**As a** host  
-**I want** event titles to support emojis and special characters  
+**As an** admin
+**I want** event titles to support emojis and special characters
 **So that** I can create engaging and expressive event names.
 
 ---
 
-## Account Management
+## Account Management (Admins Only)
 
-### User Story: Manage Account Settings
-**As a** user  
-**I want to** manage my account after creating an account and logging in  
-**So that** I can change my username, change my emoji/avatar, and update my profile information.
+### User Story: Manage Admin Account Settings
+**As an** admin
+**I want to** manage my account settings after logging in
+**So that** I can update my username and profile information.
 
-### Edge Case: Change to Already Taken Username
-**As a** user  
-**I want** clear feedback when I try to change my username to one that's already taken  
+### Edge Case: Change to Already Taken Admin Username
+**As an** admin
+**I want** clear feedback when I try to change my username to one already taken by another admin
 **So that** I can choose a different username.
 
-### Edge Case: Avatar Upload Exceeds Size Limit
-**As a** user  
-**I want** clear feedback when my custom avatar file is too large  
-**So that** I know the maximum file size and can resize my image.
-
-### Edge Case: Avatar Upload Invalid Format
-**As a** user  
-**I want** clear feedback when I upload an unsupported image format  
-**So that** I know which formats are accepted (e.g., PNG, JPG, GIF).
-
-### Edge Case: Profile Update While in Active Event
-**As a** user  
-**I want** my profile changes (username, avatar) to be reflected in the current event  
-**So that** other participants see my updated identity.
+### Edge Case: Admin Joins as Anonymous Participant
+**As an** admin
+**I want to** be able to join other admins' events as an anonymous participant
+**So that** I can experience events without my admin identity.
 
 ---
 
@@ -361,17 +489,20 @@ This document contains user stories for the quiz application, organized by featu
 | Category | Story Count |
 |----------|-------------|
 | Session Entry (QR-Only) | 6 |
-| Identity & Rejoining | 7 |
+| Identity & Rejoining | 10 |
 | Late Joiners | 5 |
 | Presenter Controls (QR-Aware) | 5 |
 | Quiz Flow (Aligned with QR Entry) | 4 |
 | Scoring & Leaderboards | 5 |
-| Presenter Rotation | 4 |
+| Presenter Rotation | 11 |
 | Presenter Controls & Recovery | 5 |
-| Reliability & Edge Cases | 12 |
-| Event Management | 4 |
-| Account Management | 5 |
-| **Total** | **62** |
+| Segment Flow & Leaderboards | 4 |
+| Mega Quiz & Event Completion | 5 |
+| Data Export & Persistence | 5 |
+| Reliability & Edge Cases | 11 |
+| Event Management | 6 |
+| Account Management (Admins Only) | 3 |
+| **Total** | **85** |
 
 ---
 
@@ -379,6 +510,7 @@ This document contains user stories for the quiz application, organized by featu
 
 - `ARCHITECTURE.md` - System architecture overview
 - `CLAUDE.md` - Development guide and patterns
+- `JACKBOX_STYLE_ARCHITECTURE.md` - Jackbox-style session model
 - `MULTI_PRESENTER_IMPLEMENTATION.md` - Multi-presenter feature implementation
 - `IMPLEMENTATION_GUIDE.md` - Detailed implementation steps
 

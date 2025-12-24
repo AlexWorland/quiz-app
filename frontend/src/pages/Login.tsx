@@ -38,7 +38,10 @@ export function LoginPage() {
       login(response.data.user, response.data.token)
       navigate('/')
     } catch (error: any) {
-      const message = error.response?.data?.error || 'Login failed'
+      const message =
+        error.response?.data?.error ||
+        error.response?.data?.detail ||
+        'Login failed'
       setErrors({ submit: message })
     } finally {
       setLoading(false)
