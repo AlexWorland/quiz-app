@@ -7,6 +7,87 @@ on:
     branches: [main]
 
 jobs:
+  backend-unit-tests:
+    name: Backend Unit Tests (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-python
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: quiz
+          POSTGRES_PASSWORD: quiz
+          POSTGRES_DB: quiz_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend-python/requirements.txt
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov httpx
+
+      - name: Run database migration
+        run: |
+          python -c "
+          import asyncio
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+          
+          async def run():
+              engine = create_async_engine('postgresql+asyncpg://quiz:quiz@localhost:5432/quiz_test')
+              async with engine.begin() as conn:
+                  await conn.execute(text('''
+                      ALTER TABLE events 
+                      ADD COLUMN IF NOT EXISTS questions_to_generate INTEGER DEFAULT 5
+                  '''))
+              await engine.dispose()
+          
+          asyncio.run(run())
+          "
+        env:
+          DATABASE_URL: postgresql+asyncpg://quiz:quiz@localhost:5432/quiz_test
+
+      - name: Run unit tests
+        run: pytest -v --cov=app --cov-report=term-missing --cov-report=xml
+        env:
+          DATABASE_URL: postgresql+asyncpg://quiz:quiz@localhost:5432/quiz_test
+          JWT_SECRET: test-secret
+          ENCRYPTION_KEY: test-encryption-key-32-bytes!!!
+          DEFAULT_AI_PROVIDER: openai
+          OPENAI_MODEL: gpt-5.2-thinking
+          ENVIRONMENT: test
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: backend-python/coverage.xml
+          flags: backend
+          name: backend-coverage
+
   frontend-build:
     name: Frontend Build & Lint
     runs-on: ubuntu-latest
@@ -57,7 +138,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Run unit tests
-        run: npm test
+        run: npm test -- --run
 
       - name: Run unit tests with coverage
         run: npm run test:coverage
@@ -66,63 +147,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-report
+          name: frontend-coverage
           path: frontend/coverage/
           retention-days: 7
-
-  backend-build:
-    name: Backend Build & Test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: quiz
-          POSTGRES_PASSWORD: quiz
-          POSTGRES_DB: quiz
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgres://quiz:quiz@localhost:5432/quiz
-      RUST_BACKTRACE: 1
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            backend/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Check formatting
-        run: cargo fmt --check
-
-      - name: Clippy
-        run: cargo clippy -- -D warnings
-
-      - name: Build
-        run: cargo build --release
-
-      - name: Run tests
-        run: cargo test
