@@ -15,6 +15,7 @@ class OpenAIProvider:
 
     def __init__(self, api_key: str | None = None):
         self.client = AsyncOpenAI(api_key=api_key or settings.openai_api_key)
+        self.model = settings.openai_model
 
     async def generate_fake_answers(
         self,
@@ -24,7 +25,7 @@ class OpenAIProvider:
     ) -> list[str]:
         """Generate plausible fake answers."""
         response = await self.client.chat.completions.create(
-            model="gpt-4",
+            model=self.model,
             response_format={"type": "json_object"},
             messages=[
                 {
@@ -57,7 +58,7 @@ Return JSON: {{"answers": ["fake1", "fake2", "fake3"]}}""",
         existing_str = "\n".join(existing_questions) if existing_questions else "None"
 
         response = await self.client.chat.completions.create(
-            model="gpt-4",
+            model=self.model,
             response_format={"type": "json_object"},
             messages=[
                 {
@@ -84,6 +85,90 @@ Or if no good question: {{"skip": true}}""",
             )
         except (json.JSONDecodeError, KeyError):
             return None
+
+    async def generate_questions_batch(
+        self,
+        transcript: str,
+        num_questions: int = 5,
+        existing_questions: list[str] | None = None,
+    ) -> list[GeneratedQuestion]:
+        """Generate multiple questions from transcript in a single API call.
+        
+        Uses GPT-5.2-thinking's reasoning capabilities to generate a coherent
+        set of questions covering the entire transcript.
+        
+        Args:
+            transcript: Full transcript text
+            num_questions: Number of questions to generate
+            existing_questions: Previously generated questions to avoid duplicates
+            
+        Returns:
+            List of GeneratedQuestion objects
+        """
+        if len(transcript) < 50:
+            return []
+        
+        existing_str = "\n".join(existing_questions) if existing_questions else "None"
+        
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""Analyze this presentation transcript and generate exactly {num_questions} quiz questions.
+
+Transcript:
+{transcript}
+
+Previously generated questions (avoid duplicates):
+{existing_str}
+
+Requirements:
+- Generate exactly {num_questions} questions
+- Questions should test factual knowledge and key concepts from the transcript
+- Each question needs a correct answer and 3 plausible fake answers
+- Questions should be diverse and cover different parts of the content
+- Fake answers should be similar in style/length to correct answers
+- Questions should be clear, unambiguous, and answerable from the transcript
+
+Return JSON format:
+{{
+  "questions": [
+    {{
+      "question": "What is...?",
+      "correct_answer": "The answer",
+      "fake_answers": ["Wrong 1", "Wrong 2", "Wrong 3"]
+    }},
+    ...
+  ]
+}}
+
+If the transcript doesn't contain enough content for {num_questions} questions, generate as many good questions as possible (minimum 1).""",
+                }
+            ],
+            max_tokens=4096,
+        )
+        
+        try:
+            content = response.choices[0].message.content
+            data = json.loads(content)
+            questions_data = data.get("questions", [])
+            
+            return [
+                GeneratedQuestion(
+                    question_text=q["question"],
+                    correct_answer=q["correct_answer"],
+                    fake_answers=q.get("fake_answers", []),
+                    source_transcript=transcript[:500],
+                )
+                for q in questions_data
+            ]
+        except (json.JSONDecodeError, KeyError) as e:
+            # Log error but don't crash - return empty list to fallback to chunking
+            import logging
+            logging.error(f"Failed to parse batch question generation response: {e}")
+            return []
 
     async def evaluate_question_quality(
         self,

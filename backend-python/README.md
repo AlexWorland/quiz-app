@@ -97,4 +97,5 @@ backend-python/
 | `JWT_EXPIRY_HOURS` | Token expiration time | 24 |
 | `ANTHROPIC_API_KEY` | Claude API key | Optional |
 | `OPENAI_API_KEY` | OpenAI API key | Optional |
-| `DEFAULT_AI_PROVIDER` | claude, openai, or ollama | claude |
+| `OPENAI_MODEL` | OpenAI model name | gpt-5.2-thinking |
+| `DEFAULT_AI_PROVIDER` | openai or claude | openai |

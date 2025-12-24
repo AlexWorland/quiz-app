@@ -15,6 +15,7 @@ class CreateEventRequest(BaseModel):
     mode: str | None = None  # "listen_only" or "normal"
     num_fake_answers: int | None = Field(None, ge=1, le=5)
     time_per_question: int | None = Field(None, ge=5, le=300)
+    questions_to_generate: int | None = Field(None, ge=1, le=20)
     question_gen_interval_seconds: int | None = Field(None, ge=10, le=300)
 
 
@@ -26,6 +27,7 @@ class UpdateEventRequest(BaseModel):
     status: str | None = None
     num_fake_answers: int | None = None
     time_per_question: int | None = None
+    questions_to_generate: int | None = None
     question_gen_interval_seconds: int | None = None
 
 
@@ -43,6 +45,7 @@ class EventResponse(BaseModel):
     status: str
     num_fake_answers: int
     time_per_question: int
+    questions_to_generate: int
     question_gen_interval_seconds: int | None = None
     join_locked: bool
     join_locked_at: datetime | None = None

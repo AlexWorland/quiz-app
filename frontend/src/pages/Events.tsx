@@ -15,10 +15,12 @@ export function EventsPage() {
     title: string
     description: string
     mode: 'listen_only' | 'normal'
+    questions_to_generate: number
   }>({
     title: '',
     description: '',
     mode: 'listen_only',
+    questions_to_generate: 5,
   })
   const [creating, setCreating] = useState(false)
 
@@ -51,10 +53,11 @@ export function EventsPage() {
         mode: createForm.mode,
         num_fake_answers: 3,
         time_per_question: 30,
+        questions_to_generate: createForm.questions_to_generate,
       } as CreateEventRequest)
       // Refresh the list so the newly created event is visible immediately
       await loadEvents()
-      setCreateForm({ title: '', description: '', mode: 'listen_only' })
+      setCreateForm({ title: '', description: '', mode: 'listen_only', questions_to_generate: 5 })
       setShowCreateModal(false)
     } catch (error) {
       console.error('Failed to create event:', error)
@@ -160,6 +163,25 @@ export function EventsPage() {
                       </div>
                     </label>
                   </div>
+                </div>
+
+                {/* Questions to Generate Setting */}
+                <div>
+                  <Input
+                    label="Questions to Generate Per Segment"
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={createForm.questions_to_generate}
+                    onChange={(e) => setCreateForm({ 
+                      ...createForm, 
+                      questions_to_generate: Math.min(20, Math.max(1, parseInt(e.target.value) || 5))
+                    })}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    How many questions AI should generate from each presentation (1-20)
+                  </p>
                 </div>
 
                 <div className="flex gap-3 pt-4">

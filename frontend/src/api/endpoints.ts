@@ -62,6 +62,7 @@ export interface Event {
   status: 'waiting' | 'active' | 'finished'
   num_fake_answers: number
   time_per_question: number
+  questions_to_generate: number
   join_locked: boolean
   join_locked_at?: string
   previous_status?: string | null
@@ -91,6 +92,7 @@ export interface CreateEventRequest {
   mode?: 'listen_only' | 'normal'
   num_fake_answers?: number
   time_per_question?: number
+  questions_to_generate?: number
   question_gen_interval_seconds?: number // Interval for AI question generation (10-300 seconds, default: 30)
 }
 
@@ -105,6 +107,7 @@ export interface Question {
   segment_id: string
   question_text: string
   correct_answer: string
+  fake_answers?: string[]
   order_index: number
   is_ai_generated?: boolean
   source_transcript?: string
@@ -147,6 +150,9 @@ export const createEvent = (data: CreateEventRequest) =>
 
 export const getEvent = (id: string) =>
   client.get<Event>(`/quizzes/${id}`)
+
+export const getEventSegments = (eventId: string) =>
+  client.get<Segment[]>(`/events/${eventId}/segments`)
 
 export const updateEvent = (id: string, data: Partial<Event>) =>
   client.put<Event>(`/quizzes/${id}`, data)
@@ -274,6 +280,36 @@ export const stopRecording = (segmentId: string) =>
 
 export const restartRecording = (segmentId: string) =>
   client.post<Segment>(`/segments/${segmentId}/recording/restart`)
+
+// Transcribe audio and generate quiz
+export async function transcribeSegmentAudio(
+  segmentId: string,
+  audioBlob: Blob
+) {
+  const formData = new FormData()
+  formData.append('audio_file', audioBlob, 'recording.webm')
+  
+  return client.post<{
+    success: boolean
+    transcript_length: number
+    questions_generated: number
+    segment_id: string
+  }>(`/segments/${segmentId}/transcribe`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
+
+// Finalize chunked recording and generate quiz
+export async function finalizeRecordingAndGenerate(segmentId: string) {
+  return client.post<{
+    success: boolean
+    chunks_processed: number
+    transcript_length: number
+    questions_generated: number
+  }>(`/segments/${segmentId}/finalize-and-transcribe`)
+}
 
 // Segment completion and resume
 export const completeSegment = (segmentId: string) =>

@@ -33,17 +33,15 @@ class Settings(BaseSettings):
     cors_allowed_origins: str = "*"
 
     # AI Providers
-    default_ai_provider: Literal["claude", "openai", "ollama"] = "claude"
+    default_ai_provider: Literal["claude", "openai", "ollama"] = "openai"
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
+    openai_model: str = "gpt-5.2-thinking"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama2"
 
-    # Speech-to-Text Providers
-    default_stt_provider: Literal["deepgram", "assemblyai", "whisper"] = "deepgram"
-    deepgram_api_key: str | None = None
-    assemblyai_api_key: str | None = None
-    enable_streaming_transcription: bool = False
+    # OpenAI handles both transcription (Whisper) and question generation
+    # openai_api_key is defined in AI Providers section above
 
     # MinIO/S3 Storage
     minio_endpoint: str = "localhost:9000"

@@ -8,14 +8,16 @@ import { ExportErrorNotice } from '@/components/export/ExportErrorNotice'
 import { PassPresenterButton } from '@/components/quiz/PassPresenterButton'
 import { AdminPresenterSelect } from '@/components/quiz/AdminPresenterSelect'
 import { JoinLockReminder } from '@/components/event/JoinLockReminder'
+import { EventSettings } from '@/components/event/EventSettings'
 import { AnswerProgress } from '@/components/quiz/AnswerProgress'
 import { PresenterControls } from '@/components/quiz/PresenterControls'
 import { SegmentCompleteView } from '@/components/quiz/SegmentCompleteView'
 import { ResumeControls } from '@/components/quiz/ResumeControls'
 import { RecordingControls } from '@/components/recording/RecordingControls'
 import { RecordingStatus } from '@/components/recording/RecordingStatus'
+import { ChunkUploadStatus } from '@/components/recording/ChunkUploadStatus'
+import { ProcessingLogs } from '@/components/recording/ProcessingLogs'
 import { TranscriptView } from '@/components/recording/TranscriptView'
-import { AudioFormatNotice } from '@/components/recording/AudioFormatNotice'
 import { GeneratedQuestionList } from '@/components/questions/GeneratedQuestionList'
 import { QuizReadyIndicator } from '@/components/questions/QuizReadyIndicator'
 import { QuestionEditor } from '@/components/questions/QuestionEditor'
@@ -26,6 +28,7 @@ import { NoQuestionsNotice } from '@/components/questions/NoQuestionsNotice'
 import { AIServiceErrorNotice } from '@/components/questions/AIServiceErrorNotice'
 import { MasterLeaderboard } from '@/components/leaderboard/MasterLeaderboard'
 import { SegmentLeaderboard } from '@/components/leaderboard/SegmentLeaderboard'
+import { FlappyBird } from '@/components/games/FlappyBird'
 
 import {
   eventAPI,
@@ -45,8 +48,11 @@ import {
   resumeEvent,
   clearEventResumeState,
   unlockEventJoin,
+  transcribeSegmentAudio,
+  startRecording as startRecordingApi,
+  stopRecording as stopRecordingApi,
 } from '@/api/endpoints'
-import { useAudioWebSocket, type AudioServerMessage } from '@/hooks/useAudioWebSocket'
+import { useChunkedAudioRecording } from '@/hooks/useChunkedAudioRecording'
 import { useEventWebSocket, type ServerMessage, type Participant, type QuizPhase, type LeaderboardEntry as WsLeaderboardEntry, type SegmentWinner } from '@/hooks/useEventWebSocket'
 import { DisplayModeContainer } from '@/components/display/DisplayModeContainer'
 import { WaitingForParticipants } from '@/components/quiz/WaitingForParticipants'
@@ -103,7 +109,7 @@ export function EventHostPage() {
 
   // AI error state
   const [aiError, setAiError] = useState<{
-    type: 'service_unavailable' | 'rate_limit' | 'connection_error' | 'unknown'
+    type: 'service_unavailable' | 'rate_limit' | 'connection_error' | 'unknown' | 'microphone_error' | 'generation_error'
     message: string
   } | null>(null)
   const [isRetryingAiGeneration, setIsRetryingAiGeneration] = useState(false)
@@ -251,33 +257,31 @@ export function EventHostPage() {
     }
   }, [joinLockTimestamp, event?.join_locked])
 
-  // Audio WebSocket for live transcription & question generation
-  const {
-    startRecording: startAudioCapture,
-    stopRecording: stopAudioCapture,
-    audioCapabilities,
-    audioError,
-  } = useAudioWebSocket({
+  // Chunked audio recording for transcription
+  const { 
+    isRecording: isAudioRecording,
+    chunksUploaded, 
+    uploadingChunk,
+    startRecording, 
+    stopRecording 
+  } = useChunkedAudioRecording({
     segmentId: segmentId ?? '',
-    onMessage: (msg: AudioServerMessage) => {
-      if (msg.type === 'transcript_update') {
-        setTranscript((prev) => (msg.is_final ? `${prev} ${msg.text}`.trim() : `${prev}\n${msg.text}`))
-        setAiError(null)
-      } else if (msg.type === 'question_generated') {
-        // When a new question is generated, refresh questions from the API
-        if (segmentId) {
-          void getSegmentQuestions(segmentId).then((res) => setQuestions(res.data))
-        }
-        setAiError(null)
-      } else if (msg.type === 'ai_error') {
-        setAiError({
-          type: msg.error_type,
-          message: msg.message,
-        })
-        setIsRetryingAiGeneration(false)
+    onChunkUploaded: (result) => {
+      if (result.success) {
+        console.log(`Chunk ${result.chunkIndex} uploaded successfully`)
+      } else {
+        console.error(`Chunk ${result.chunkIndex} failed:`, result.error)
       }
     },
+    onError: (error) => {
+      setAiError({
+        type: 'microphone_error',
+        message: error
+      })
+    }
   })
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false)
+  const [showProcessingLogs, setShowProcessingLogs] = useState(false)
 
   // Event WebSocket for quiz flow and participant tracking
   const { isConnected, sendMessage, currentPresenter, presenterPaused: wsPresenterPaused, isPresenter: isCurrentPresenter } = useEventWebSocket({
@@ -394,6 +398,14 @@ export function EventHostPage() {
         setMegaQuizStarted(true)
         setMegaQuizReady(null)
         setIsQuizActive(true)
+      } else if (msg.type === 'quiz_generating') {
+        setIsGeneratingQuiz(true)
+      } else if (msg.type === 'quiz_ready') {
+        setIsGeneratingQuiz(false)
+        // Refresh questions
+        if (segmentId) {
+          void getSegmentQuestions(segmentId).then((res) => setQuestions(res.data))
+        }
       }
     },
   })
@@ -460,58 +472,69 @@ export function EventHostPage() {
   const handleStartRecording = async () => {
     if (!segmentId) return
     try {
-      const res = await eventAPI.startRecording(segmentId)
+      await startRecording()
+      const res = await startRecordingApi(segmentId)
       setSegment(res.data)
-      // Start capturing audio from microphone
-      await startAudioCapture()
     } catch (error) {
       console.error('Failed to start recording:', error)
+      setAiError({ 
+        type: 'microphone_error', 
+        message: 'Could not access microphone' 
+      })
+    }
+  }
+
+  const handleGenerateQuiz = async () => {
+    if (!segmentId) return
+    
+    // Check if any chunks were uploaded
+    if (chunksUploaded === 0) {
+      setAiError({
+        type: 'generation_error',
+        message: 'No audio chunks recorded. Please record for at least 1 minute.'
+      })
+      return
+    }
+    
+    setIsGeneratingQuiz(true)
+    setAiError(null)
+    
+    try {
+      stopRecording()
+      const res = await stopRecordingApi(segmentId)
+      setSegment(res.data)
+      
+      // Call finalize endpoint (chunks already uploaded)
+      const { finalizeRecordingAndGenerate } = await import('@/api/endpoints')
+      await finalizeRecordingAndGenerate(segmentId)
+      
+      // Navigation and question refresh handled by quiz_ready WebSocket message
+    } catch (error) {
+      console.error('Failed to generate quiz:', error)
+      setAiError({
+        type: 'generation_error',
+        message: error instanceof Error ? error.message : 'Failed to generate quiz'
+      })
+      setIsGeneratingQuiz(false)
     }
   }
 
   const handlePauseRecording = async () => {
-    if (!segmentId) return
-    try {
-      const res = await eventAPI.pauseRecording(segmentId)
-      setSegment(res.data)
-      // Stop audio capture while paused
-      stopAudioCapture()
-    } catch (error) {
-      console.error('Failed to pause recording:', error)
-    }
+    // Not needed for new flow
   }
 
   const handleResumeRecording = async () => {
-    if (!segmentId) return
-    try {
-      const res = await eventAPI.resumeRecording(segmentId)
-      setSegment(res.data)
-      // Resume audio capture
-      await startAudioCapture()
-    } catch (error) {
-      console.error('Failed to resume recording:', error)
-    }
+    // Not needed for new flow
   }
 
-  const handleStopRecording = async () => {
-    if (!segmentId) return
-    try {
-      const res = await eventAPI.stopRecording(segmentId)
-      setSegment(res.data)
-      // Stop audio capture
-      stopAudioCapture()
-    } catch (error) {
-      console.error('Failed to stop recording:', error)
-    }
-  }
+  const handleStopRecording = handleGenerateQuiz
 
   const handleRestartRecording = async () => {
     if (!segmentId) return
     try {
-      // Stop any existing audio capture
-      stopAudioCapture()
-      const res = await eventAPI.restartRecording(segmentId)
-      setSegment(res.data)
+      // Not implemented in new flow - would need to restart recording
+      // For now, just clear local state
+      stopRecording()
       setTranscript('')
       setQuestions([])
     } catch (error) {
@@ -779,33 +802,32 @@ export function EventHostPage() {
                 sendMessage({ type: 'admin_select_presenter', presenter_user_id: presenterId, segment_id: segId })
               }}
             />
-            {/* Join as Participant Button */}
+            {/* Event Settings Button */}
+            <EventSettings
+              event={event}
+              onUpdate={(updatedEvent) => {
+                // Optionally refresh event data after update
+                console.log('Event updated:', updatedEvent)
+              }}
+            />
+            {/* Join as Participant Button - Navigate in-app */}
             <Button
               variant="secondary"
-              onClick={async () => {
-                const displayName = prompt('Enter your participant display name:')
-                if (!displayName?.trim()) return
-
-                try {
-                  const response = await eventAPI.joinAsHost(eventId!, {
-                    display_name: displayName.trim(),
-                    avatar_url: user?.avatar_url,
-                    avatar_type: user?.avatar_type as 'emoji' | 'preset' | 'custom' | undefined,
-                  })
-
-                  // Store participant session separately in localStorage
-                  localStorage.setItem(`participant_${eventId}`, JSON.stringify(response))
-
-                  // Open participant view in new tab
-                  window.open(`/events/${eventId}/participate`, '_blank')
-                } catch (error) {
-                  console.error('Failed to join as participant:', error)
-                  alert('Failed to join as participant. Please try again.')
-                }
+              onClick={() => {
+                // Navigate to event detail where they can join
+                navigate(`/events/${eventId}`)
               }}
               className="text-sm"
             >
               Join as Participant
+            </Button>
+            {/* Processing Logs Button */}
+            <Button
+              variant="secondary"
+              onClick={() => setShowProcessingLogs(true)}
+              className="text-sm"
+            >
+              View Logs
             </Button>
             {/* Export Dropdown */}
             <div className="relative">
@@ -963,8 +985,14 @@ export function EventHostPage() {
           <div className="grid grid-cols-1 md:grid-cols-[1.5fr_2fr] gap-6">
             <div className="bg-dark-900 rounded-lg p-6 border border-dark-700 space-y-4">
               <h2 className="text-lg font-semibold text-white mb-2">Recording Status</h2>
-              <AudioFormatNotice capabilities={audioCapabilities} error={audioError} />
+              {/* Audio format notice removed - using standard WebM */}
               <RecordingStatus status={segment.status} startedAt={segment.recording_started_at} />
+              {isAudioRecording && (
+                <ChunkUploadStatus chunksUploaded={chunksUploaded} isUploading={uploadingChunk} />
+              )}
+              <div className="text-sm text-gray-400 mb-2">
+                When finished presenting, press "Generate Quiz"
+              </div>
               <RecordingControls
                 status={segment.status}
                 onStart={handleStartRecording}
@@ -1424,6 +1452,20 @@ export function EventHostPage() {
           isVisible={true}
         />
       )}
+
+      {/* Flappy Bird during quiz generation */}
+      {isGeneratingQuiz && (
+        <div className="fixed inset-0 bg-slate-900/95 z-50 flex items-center justify-center">
+          <FlappyBird />
+        </div>
+      )}
+
+      {/* Processing Logs Modal */}
+      <ProcessingLogs
+        segmentId={segmentId ?? ''}
+        isOpen={showProcessingLogs}
+        onClose={() => setShowProcessingLogs(false)}
+      />
     </div>
   )
 }

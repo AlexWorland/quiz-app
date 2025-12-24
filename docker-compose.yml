@@ -52,6 +52,7 @@ services:
       /bin/sh -c "
       mc alias set myminio http://minio:9000 minioadmin minioadmin;
       mc mb myminio/avatars --ignore-existing;
+      mc mb myminio/audio-chunks --ignore-existing;
       mc anonymous set download myminio/avatars;
       exit 0;
       "
@@ -72,14 +73,13 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: avatars
-      DEFAULT_AI_PROVIDER: ${DEFAULT_AI_PROVIDER:-claude}
+      DEFAULT_AI_PROVIDER: ${DEFAULT_AI_PROVIDER:-openai}
       DEFAULT_STT_PROVIDER: ${DEFAULT_STT_PROVIDER:-deepgram}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.2-thinking}
       DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
       ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama2}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-32-byte-secret-key-change-me!!!}
       ENVIRONMENT: ${ENVIRONMENT:-development}
@@ -134,50 +134,9 @@ services:
     networks:
       - quiz-network
 
-  # Ollama - Local LLM (optional, use with --profile local-llm)
-  ollama:
-    image: ollama/ollama:0.5.4
-    container_name: quiz-ollama
-    profiles:
-      - local-llm
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    networks:
-      - quiz-network
-    # Fallback for non-GPU systems - comment out deploy section above
-
-  # Ollama model initialization (pulls llama2 on first run)
-  ollama-init:
-    image: ollama/ollama:0.5.4
-    container_name: quiz-ollama-init
-    profiles:
-      - local-llm
-    depends_on:
-      - ollama
-    entrypoint: >
-      /bin/sh -c "
-      sleep 10;
-      ollama pull llama2;
-      exit 0;
-      "
-    environment:
-      OLLAMA_HOST: ollama:11434
-    networks:
-      - quiz-network
-
 volumes:
   postgres_data:
   minio_data:
-  ollama_data:
   frontend_node_modules:
 
 networks:

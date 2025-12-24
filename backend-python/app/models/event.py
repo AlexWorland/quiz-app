@@ -14,7 +14,6 @@ class EventMode(str, Enum):
     """Event modes."""
 
     LISTEN_ONLY = "listen_only"
-    NORMAL = "normal"
 
 
 class EventStatus(str, Enum):
@@ -50,6 +49,7 @@ class Event(Base):
     status: Mapped[str] = mapped_column(String(50), default=EventStatus.WAITING.value)
     num_fake_answers: Mapped[int] = mapped_column(Integer, default=3)
     time_per_question: Mapped[int] = mapped_column(Integer, default=30)
+    questions_to_generate: Mapped[int] = mapped_column(Integer, default=5)
     question_gen_interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     join_locked: Mapped[bool] = mapped_column(Boolean, default=False)
     join_locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

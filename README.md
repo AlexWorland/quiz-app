@@ -7,7 +7,7 @@ A real-time multiplayer quiz application for multi-presenter events with live au
 ### Core Quiz Features
 - **Real-time Multiplayer**: WebSocket-based live quiz sessions with instant updates
 - **Multi-Presenter Support**: Host events with multiple presenters and segments
-- **AI Question Generation**: Generate quiz questions from content using Claude, OpenAI, or local Ollama
+- **AI Question Generation**: Generate quiz questions from content using OpenAI GPT-5.2 (default) or Claude
 - **Live Audio Transcription**: Speech-to-text via Deepgram, AssemblyAI, or OpenAI Whisper
 - **Two Quiz Modes**:
   - **Traditional Mode**: Pre-written questions with AI-generated fake answers
@@ -34,7 +34,7 @@ A real-time multiplayer quiz application for multi-presenter events with live au
   - Full question management (CRUD operations)
   - Mode selection during event creation
 - [x] Real-time WebSocket Support - Hub pattern with broadcast channels
-- [x] AI Question Generation - Claude, OpenAI, Ollama providers with quality scoring
+- [x] AI Question Generation - OpenAI GPT-5.2 (default), Claude providers with quality scoring
 - [x] Collaborative Drawing Canvas - Real-time strokes with color/brush controls
 - [x] QR Code Join - 6-character codes with QR generation
 - [x] Leaderboards - Segment-level and master event leaderboards
@@ -74,7 +74,7 @@ A real-time multiplayer quiz application for multi-presenter events with live au
 | Database | PostgreSQL 15 |
 | Object Storage | MinIO (S3-compatible) |
 | Real-time | WebSockets |
-| AI Providers | Claude, OpenAI, Ollama |
+| AI Providers | OpenAI GPT-5.2 (default), Claude |
 | STT Providers | Deepgram, AssemblyAI, OpenAI Whisper |
 
 Note: The legacy Rust backend under `backend/` is kept for reference; active development and testing use the FastAPI backend in `backend-python/`.
@@ -117,16 +117,6 @@ Note: The legacy Rust backend under `backend/` is kept for reference; active dev
    ```bash
    docker-compose down
    ```
-
-### Using Local LLM (Ollama)
-
-To use a local LLM instead of cloud providers:
-
-```bash
-docker-compose --profile local-llm up -d
-```
-
-This starts Ollama and pulls the llama2 model on first run.
 
 ## Local Development
 
@@ -238,10 +228,10 @@ Copy `.env.example` to `.env` and configure:
 | `JWT_SECRET` | JWT signing key (change in production) | - |
 | `JWT_EXPIRY_HOURS` | Token expiration | `24` |
 | `ENCRYPTION_KEY` | 32-byte key for API key encryption | - |
-| `DEFAULT_AI_PROVIDER` | `claude`, `openai`, or `ollama` | `claude` |
-| `ANTHROPIC_API_KEY` | Claude API key | - |
-| `OPENAI_API_KEY` | OpenAI API key | - |
-| `OLLAMA_BASE_URL` | Ollama endpoint | `http://localhost:11434` |
+| `DEFAULT_AI_PROVIDER` | `openai` or `claude` | `openai` |
+| `OPENAI_API_KEY` | OpenAI API key (required for GPT-5.2 and Whisper) | - |
+| `OPENAI_MODEL` | OpenAI model name | `gpt-5.2-thinking` |
+| `ANTHROPIC_API_KEY` | Claude API key (optional fallback) | - |
 | `DEFAULT_STT_PROVIDER` | `deepgram`, `assemblyai`, or `whisper` | `deepgram` |
 | `DEEPGRAM_API_KEY` | Deepgram API key | - |
 | `ASSEMBLYAI_API_KEY` | AssemblyAI API key | - |
@@ -300,9 +290,8 @@ sqlx migrate revert
 |---------|------|-------------|
 | `postgres` | 5432 | PostgreSQL database |
 | `minio` | 9000, 9001 | S3-compatible storage (API, Console) |
-| `backend` | 8080 | Rust API server |
+| `backend` | 8080 | Python FastAPI server |
 | `frontend` | 5173 | React development server |
-| `ollama` | 11434 | Local LLM (optional, `--profile local-llm`) |
 
 ## Useful Commands
 

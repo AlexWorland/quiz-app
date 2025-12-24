@@ -56,11 +56,36 @@ async def create_event(
         status=EventStatus.WAITING.value,
         num_fake_answers=request.num_fake_answers or 3,
         time_per_question=request.time_per_question or 30,
+        questions_to_generate=request.questions_to_generate or 5,
         question_gen_interval_seconds=request.question_gen_interval_seconds,
     )
     db.add(event)
     await db.flush()
     return EventResponse.model_validate(event)
+
+
+@router.get("/events/{event_id}/segments")
+async def list_event_segments(
+    event_id: str,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[dict]:
+    """List all segments for an event."""
+    from app.models import Segment
+    from app.schemas import SegmentResponse
+    
+    result = await db.execute(select(Event).where(Event.id == event_id))
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    if event.host_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    
+    segments_result = await db.execute(
+        select(Segment).where(Segment.event_id == event_id).order_by(Segment.order_index)
+    )
+    segments = segments_result.scalars().all()
+    return [SegmentResponse.model_validate(s).model_dump() for s in segments]
 
 
 @router.get("/quizzes/{event_id}", response_model=EventResponse)
@@ -104,6 +129,8 @@ async def update_event(
         event.num_fake_answers = request.num_fake_answers
     if request.time_per_question is not None:
         event.time_per_question = request.time_per_question
+    if request.questions_to_generate is not None:
+        event.questions_to_generate = request.questions_to_generate
     if request.question_gen_interval_seconds is not None:
         event.question_gen_interval_seconds = request.question_gen_interval_seconds
 
