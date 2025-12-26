@@ -221,4 +221,193 @@ describe('useEventWebSocket', () => {
 
     expect(closeSpy).toHaveBeenCalled();
   });
+
+  it('updates pendingPresenter on presenter_selected message', () => {
+    const { result } = renderHook(() =>
+      useEventWebSocket({ eventId: 'test-event' })
+    );
+
+    const ws = MockWebSocket.getLatest()!;
+    act(() => {
+      ws.simulateOpen();
+    });
+
+    act(() => {
+      ws.simulateMessage({
+        type: 'presenter_selected',
+        presenter_id: '2',
+        presenter_name: 'Presenter User',
+        is_first_presenter: true,
+      });
+    });
+
+    expect(result.current.pendingPresenter).toEqual({
+      id: '2',
+      name: 'Presenter User',
+      isFirstPresenter: true,
+    });
+  });
+
+  it('sets isPendingPresenter when current user is selected as presenter', () => {
+    const { result } = renderHook(() =>
+      useEventWebSocket({ eventId: 'test-event' })
+    );
+
+    const ws = MockWebSocket.getLatest()!;
+    act(() => {
+      ws.simulateOpen();
+    });
+
+    // Select current user (id: '1') as presenter
+    act(() => {
+      ws.simulateMessage({
+        type: 'presenter_selected',
+        presenter_id: '1', // Same as mockUser.id
+        presenter_name: 'Test User',
+        is_first_presenter: true,
+      });
+    });
+
+    expect(result.current.isPendingPresenter).toBe(true);
+  });
+
+  it('sets isPendingPresenter to false when different user is selected', () => {
+    const { result } = renderHook(() =>
+      useEventWebSocket({ eventId: 'test-event' })
+    );
+
+    const ws = MockWebSocket.getLatest()!;
+    act(() => {
+      ws.simulateOpen();
+    });
+
+    // Select different user as presenter
+    act(() => {
+      ws.simulateMessage({
+        type: 'presenter_selected',
+        presenter_id: '999', // Different from mockUser.id
+        presenter_name: 'Other User',
+        is_first_presenter: true,
+      });
+    });
+
+    expect(result.current.isPendingPresenter).toBe(false);
+  });
+
+  it('clears pendingPresenter on presentation_started message', () => {
+    const { result } = renderHook(() =>
+      useEventWebSocket({ eventId: 'test-event' })
+    );
+
+    const ws = MockWebSocket.getLatest()!;
+    act(() => {
+      ws.simulateOpen();
+    });
+
+    // First, select a presenter
+    act(() => {
+      ws.simulateMessage({
+        type: 'presenter_selected',
+        presenter_id: '2',
+        presenter_name: 'Presenter User',
+        is_first_presenter: true,
+      });
+    });
+
+    expect(result.current.pendingPresenter).not.toBeNull();
+
+    // Then, start presentation
+    act(() => {
+      ws.simulateMessage({
+        type: 'presentation_started',
+        segment_id: 'seg-123',
+        presenter_id: '2',
+        presenter_name: 'Presenter User',
+      });
+    });
+
+    expect(result.current.pendingPresenter).toBeNull();
+    expect(result.current.isPendingPresenter).toBe(false);
+    expect(result.current.currentSegmentId).toBe('seg-123');
+    expect(result.current.currentPresenter).toEqual({
+      id: '2',
+      name: 'Presenter User',
+    });
+  });
+
+  it('updates currentPresenter on presenter_changed message', () => {
+    const { result } = renderHook(() =>
+      useEventWebSocket({ eventId: 'test-event' })
+    );
+
+    const ws = MockWebSocket.getLatest()!;
+    act(() => {
+      ws.simulateOpen();
+    });
+
+    act(() => {
+      ws.simulateMessage({
+        type: 'presenter_changed',
+        previous_presenter_id: '1',
+        new_presenter_id: '2',
+        new_presenter_name: 'New Presenter',
+        segment_id: 'seg-456',
+      });
+    });
+
+    expect(result.current.currentPresenter).toEqual({
+      id: '2',
+      name: 'New Presenter',
+    });
+    expect(result.current.currentSegmentId).toBe('seg-456');
+    expect(result.current.presenterPaused).toBe(false);
+  });
+
+  it('sets isPresenter to true when current user becomes presenter', () => {
+    const { result } = renderHook(() =>
+      useEventWebSocket({ eventId: 'test-event' })
+    );
+
+    const ws = MockWebSocket.getLatest()!;
+    act(() => {
+      ws.simulateOpen();
+    });
+
+    // Current user (id: '1') becomes presenter
+    act(() => {
+      ws.simulateMessage({
+        type: 'presenter_changed',
+        previous_presenter_id: '2',
+        new_presenter_id: '1', // Same as mockUser.id
+        new_presenter_name: 'Test User',
+        segment_id: 'seg-789',
+      });
+    });
+
+    expect(result.current.isPresenter).toBe(true);
+  });
+
+  it('sets isPresenter to false when current user stops being presenter', () => {
+    const { result } = renderHook(() =>
+      useEventWebSocket({ eventId: 'test-event' })
+    );
+
+    const ws = MockWebSocket.getLatest()!;
+    act(() => {
+      ws.simulateOpen();
+    });
+
+    // Current user was presenter, now someone else is
+    act(() => {
+      ws.simulateMessage({
+        type: 'presenter_changed',
+        previous_presenter_id: '1', // Same as mockUser.id
+        new_presenter_id: '2',
+        new_presenter_name: 'Other User',
+        segment_id: 'seg-101',
+      });
+    });
+
+    expect(result.current.isPresenter).toBe(false);
+  });
 });

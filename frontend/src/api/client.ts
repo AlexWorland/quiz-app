@@ -16,6 +16,8 @@ client.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  } else {
+    console.warn('[API Client] No token found in auth store for request:', config.url)
   }
   return config
 })

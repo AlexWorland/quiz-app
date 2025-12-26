@@ -1,0 +1,1789 @@
+
+> quiz-frontend@0.1.0 test
+> vitest run --run
+
+
+ RUN  v2.1.9 /Users/aworland/quiz-app/frontend
+
+ ✓ src/utils/__tests__/deviceSession.test.ts (19 tests) 5ms
+ ✓ src/utils/__tests__/retry.test.ts (14 tests) 8ms
+ ✓ src/api/__tests__/endpoints.test.ts (31 tests) 5ms
+ ✓ src/store/__tests__/authStore.test.ts (15 tests) 3ms
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should update countdown timer
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should update countdown timer
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should auto-start after countdown expires
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should auto-start after countdown expires
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should auto-start after countdown expires
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+ ✓ src/components/display/__tests__/FinalResults.test.tsx (13 tests) 55ms
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with appropriate default question count
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with appropriate default question count
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with appropriate default question count
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with appropriate default question count
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with appropriate default question count
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with appropriate default question count
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with all questions when fewer than default available
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with all questions when fewer than default available
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with all questions when fewer than default available
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with all questions when fewer than default available
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with all questions when fewer than default available
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/SingleSegmentReview.test.tsx > SingleSegmentReview > should start with all questions when fewer than default available
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+Warning: An update to SingleSegmentReview inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SingleSegmentReview (/Users/aworland/quiz-app/frontend/src/components/quiz/SingleSegmentReview.tsx:10:3)
+
+ ✓ src/components/quiz/__tests__/SingleSegmentReview.test.tsx (18 tests) 150ms
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should render requesting permission state initially
+Warning: An update to QRScanner inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at QRScanner (/Users/aworland/quiz-app/frontend/src/components/event/QRScanner.tsx:13:22)
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should initialize scanner and start scanning
+Warning: validateDOMNesting(...): <div> cannot appear as a descendant of <p>.
+    at div
+    at Camera
+    at p
+    at div
+    at div
+    at div
+    at QRScanner (/Users/aworland/quiz-app/frontend/src/components/event/QRScanner.tsx:13:22)
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should show error when camera permission is denied
+QR Scanner error: Error: Permission denied
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:113:29
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should show error when camera is in use
+QR Scanner error: Error: NotReadableError
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:127:24
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should render close button when onClose is provided
+Warning: An update to QRScanner inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at QRScanner (/Users/aworland/quiz-app/frontend/src/components/event/QRScanner.tsx:13:22)
+
+stderr | src/components/auth/__tests__/AvatarSelector.test.tsx > AvatarSelector > should show loading state when loading stock images
+Warning: An update to AvatarSelector inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at AvatarSelector (/Users/aworland/quiz-app/frontend/src/components/auth/AvatarSelector.tsx:50:27)
+Warning: An update to AvatarSelector inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at AvatarSelector (/Users/aworland/quiz-app/frontend/src/components/auth/AvatarSelector.tsx:50:27)
+
+stderr | src/pages/__tests__/JoinEvent.test.tsx > JoinEvent > renders the code entry step initially
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should show retry button on error
+QR Scanner error: Error: Camera error
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:156:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/auth/__tests__/AvatarSelector.test.tsx > AvatarSelector > should fallback to default images if Unsplash API fails
+Failed to load stock images: Error: API Error
+    at /Users/aworland/quiz-app/frontend/src/components/auth/__tests__/AvatarSelector.test.tsx:129:47
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should retry scanning when retry button is clicked
+QR Scanner error: Error: Camera error
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:182:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/quiz/__tests__/ResumeControls.test.tsx > ResumeControls > should disable both buttons while one is loading
+Warning: An update to ResumeControls inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ResumeControls (/Users/aworland/quiz-app/frontend/src/components/quiz/ResumeControls.tsx:10:3)
+
+ ✓ src/components/quiz/__tests__/ResumeControls.test.tsx (14 tests) 181ms
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should display help text for camera errors
+QR Scanner error: Error: Permission denied
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:239:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should show NotAllowedError as permission denied state
+QR Scanner error: Error: NotAllowedError
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:297:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should show browser-specific instructions for Chrome
+QR Scanner error: Error: NotAllowedError
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:315:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should show browser-specific instructions for Firefox
+QR Scanner error: Error: NotAllowedError
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:334:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should show browser-specific instructions for Safari
+QR Scanner error: Error: NotAllowedError
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:353:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should display manual entry button when onManualEntry callback is provided
+QR Scanner error: Error: NotAllowedError
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:368:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should call onManualEntry when manual entry button is clicked
+QR Scanner error: Error: NotAllowedError
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:384:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should display orange styling for permission denied state
+QR Scanner error: Error: NotAllowedError
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:400:23
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/pages/__tests__/EventHost.resume.test.tsx > EventHost Resume Functionality > should show event resume controls when event has previous_status
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/components/event/__tests__/QRScanner.test.tsx > QRScanner > should display red styling for other errors
+QR Scanner error: Error: Camera error
+    at /Users/aworland/quiz-app/frontend/src/components/event/__tests__/QRScanner.test.tsx:415:25
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+ ✓ src/components/event/__tests__/QRScanner.test.tsx (24 tests) 228ms
+ ✓ src/components/auth/__tests__/AvatarSelector.test.tsx (20 tests) 299ms
+stdout | src/pages/__tests__/JoinEvent.test.tsx > JoinEvent > joins event with display name and avatar
+>>> joinEvent mock was called!
+
+stdout | src/pages/__tests__/JoinEvent.test.tsx > JoinEvent > joins event with display name and avatar
+Mock result: {
+  data: {
+    eventId: 'event-123',
+    deviceId: 'device-123',
+    sessionToken: 'token-123',
+    displayName: 'Test Player',
+    isRejoining: false
+  },
+  status: 200,
+  statusText: 'OK',
+  headers: {},
+  config: {}
+}
+setDeviceInfo called: [ [ 'device-123', 'token-123' ] ]
+navigate called: [ [ '/events/event-123' ] ]
+
+stdout | src/pages/__tests__/JoinEvent.test.tsx > JoinEvent > joins event with display name and avatar
+After flush - setDeviceInfo called: [ [ 'device-123', 'token-123' ] ]
+After flush - navigate called: [ [ '/events/event-123' ] ]
+
+ ✓ src/pages/__tests__/JoinEvent.test.tsx (6 tests) 330ms
+ ✓ src/pages/__tests__/EventHost.resume.test.tsx (9 tests) 185ms
+stderr | src/components/quiz/__tests__/EmergencyPresenterSelect.test.tsx > EmergencyPresenterSelect > should call onSelect when participant selected and confirmed
+Warning: An update to EmergencyPresenterSelect inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at EmergencyPresenterSelect (/Users/aworland/quiz-app/frontend/src/components/quiz/EmergencyPresenterSelect.tsx:10:3)
+
+ ✓ src/components/quiz/__tests__/EmergencyPresenterSelect.test.tsx (16 tests) 119ms
+stderr | src/api/__tests__/client.test.ts > API Client > request interceptor > should add Authorization header when token exists
+MSW not intercepting requests - test skipped
+
+stderr | src/api/__tests__/client.test.ts > API Client > request interceptor > should not add Authorization header when token is null
+MSW not intercepting requests - test skipped
+
+stderr | src/api/__tests__/client.test.ts > API Client > request interceptor > should preserve existing headers
+MSW not intercepting requests - test skipped
+
+stderr | src/api/__tests__/client.test.ts > API Client > response interceptor - 401 handling > should logout and redirect on 401 error
+MSW not intercepting - skipping 401 test
+
+ ✓ src/api/__tests__/client.test.ts (7 tests) 31ms
+ ✓ src/components/quiz/__tests__/QuizResults.test.tsx (12 tests) 38ms
+stderr | src/components/event/__tests__/ExtendedLockReminder.test.tsx > ExtendedLockReminder > should call onUnlock when unlock button clicked
+Warning: An update to ExtendedLockReminder inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ExtendedLockReminder (/Users/aworland/quiz-app/frontend/src/components/event/ExtendedLockReminder.tsx:10:3)
+
+stderr | src/components/event/__tests__/ExtendedLockReminder.test.tsx > ExtendedLockReminder > should update duration every minute
+Warning: An update to ExtendedLockReminder inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ExtendedLockReminder (/Users/aworland/quiz-app/frontend/src/components/event/ExtendedLockReminder.tsx:10:3)
+
+ ✓ src/components/questions/__tests__/BulkQuestionImport.test.tsx (9 tests) 111ms
+ ✓ src/components/event/__tests__/ExtendedLockReminder.test.tsx (13 tests) 124ms
+stderr | src/pages/__tests__/JoinEvent.qr.test.tsx > JoinEvent with QR Scanner > should show QR scanner as primary method
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+Warning: An update to QRScanner inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at QRScanner (/Users/aworland/quiz-app/frontend/src/components/event/QRScanner.tsx:13:22)
+    at div
+    at div
+    at div
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+stderr | src/pages/__tests__/JoinEvent.qr.test.tsx > JoinEvent with QR Scanner > should handle successful QR scan with URL
+Warning: validateDOMNesting(...): <div> cannot appear as a descendant of <p>.
+    at div
+    at Camera
+    at p
+    at div
+    at div
+    at div
+    at QRScanner (/Users/aworland/quiz-app/frontend/src/components/event/QRScanner.tsx:13:22)
+    at div
+    at div
+    at div
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+stderr | src/pages/__tests__/JoinEvent.qr.test.tsx > JoinEvent with QR Scanner > should handle successful QR scan with URL
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+stderr | src/pages/__tests__/JoinEvent.qr.test.tsx > JoinEvent with QR Scanner > should extract code from QR URL with query param
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+stderr | src/pages/__tests__/JoinEvent.qr.test.tsx > JoinEvent with QR Scanner > should show error for invalid QR code
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+stderr | src/pages/__tests__/JoinEvent.qr.test.tsx > JoinEvent with QR Scanner > should show error for expired event
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+ ✓ src/components/quiz/__tests__/AdminPresenterSelect.test.tsx (11 tests) 151ms
+stderr | src/pages/__tests__/JoinEvent.qr.test.tsx > JoinEvent with QR Scanner > should show error for locked event
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to JoinEvent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at JoinEvent (/Users/aworland/quiz-app/frontend/src/pages/JoinEvent.tsx:32:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+stderr | src/pages/__tests__/JoinEvent.qr.test.tsx > JoinEvent with QR Scanner > should fallback to manual entry on QR scanner error
+QR Scanner error: Error: Camera error
+    at /Users/aworland/quiz-app/frontend/src/pages/__tests__/JoinEvent.qr.test.tsx:244:61
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+ ✓ src/pages/__tests__/JoinEvent.qr.test.tsx (9 tests) 141ms
+stderr | src/components/questions/__tests__/QuestionCreator.test.tsx > QuestionCreator > should show error message when API call fails
+Failed to create question: Error: API Error
+    at /Users/aworland/quiz-app/frontend/src/components/questions/__tests__/QuestionCreator.test.tsx:130:59
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/aworland/quiz-app/frontend/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/aworland/quiz-app/frontend/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/components/questions/__tests__/QuestionCreator.test.tsx > QuestionCreator > should show loading state during submission
+Warning: An update to QuestionCreator inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at QuestionCreator (/Users/aworland/quiz-app/frontend/src/components/questions/QuestionCreator.tsx:11:28)
+Warning: An update to QuestionCreator inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at QuestionCreator (/Users/aworland/quiz-app/frontend/src/components/questions/QuestionCreator.tsx:11:28)
+Warning: An update to QuestionCreator inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at QuestionCreator (/Users/aworland/quiz-app/frontend/src/components/questions/QuestionCreator.tsx:11:28)
+
+ ✓ src/components/questions/__tests__/QuestionCreator.test.tsx (9 tests) 126ms
+ ✓ src/hooks/__tests__/useCanvasWebSocket.test.ts (11 tests) 17ms
+ ✓ src/components/event/__tests__/RecoverSession.test.tsx (11 tests) 327ms
+ ✓ src/components/quiz/__tests__/AnswerSelection.test.tsx (10 tests) 36ms
+stderr | src/pages/__tests__/EventHost.mega.test.tsx > EventHost mega quiz handling > defaults single-segment mega quiz to skip mode and routes primary action to skip
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/pages/__tests__/EventHost.mega.test.tsx > EventHost mega quiz handling > defaults single-segment mega quiz to skip mode and routes primary action to skip
+Warning: An update to EventHostPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at EventHostPage (/Users/aworland/quiz-app/frontend/src/pages/EventHost.tsx:79:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to EventHostPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at EventHostPage (/Users/aworland/quiz-app/frontend/src/pages/EventHost.tsx:79:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to EventHostPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at EventHostPage (/Users/aworland/quiz-app/frontend/src/pages/EventHost.tsx:79:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+stderr | src/pages/__tests__/EventHost.mega.test.tsx > EventHost mega quiz handling > shows pause banner for no participants and disables start controls
+Warning: An update to EventHostPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at EventHostPage (/Users/aworland/quiz-app/frontend/src/pages/EventHost.tsx:79:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to EventHostPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at EventHostPage (/Users/aworland/quiz-app/frontend/src/pages/EventHost.tsx:79:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+Warning: An update to EventHostPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at EventHostPage (/Users/aworland/quiz-app/frontend/src/pages/EventHost.tsx:79:51)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at BrowserRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router-dom/dist/umd/react-router-dom.development.js:695:7)
+
+ ✓ src/utils/__tests__/webrtcDetection.test.ts (14 tests) 2ms
+ ✓ src/pages/__tests__/EventHost.mega.test.tsx (2 tests) 71ms
+ ✓ src/hooks/__tests__/useEventWebSocket.test.ts (10 tests) 19ms
+stderr | src/hooks/__tests__/useOnlineStatus.test.ts > useOnlineStatus > should update state to true when online event fires
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (/Users/aworland/quiz-app/frontend/node_modules/@testing-library/react/dist/pure.js:328:5)
+
+ ✓ src/components/questions/__tests__/GeneratedQuestionList.test.tsx (16 tests) 83ms
+stderr | src/hooks/__tests__/useOnlineStatus.test.ts > useOnlineStatus > should update state to false when offline event fires
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (/Users/aworland/quiz-app/frontend/node_modules/@testing-library/react/dist/pure.js:328:5)
+
+stderr | src/hooks/__tests__/useOnlineStatus.test.ts > useOnlineStatus > should handle rapid online/offline toggling
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (/Users/aworland/quiz-app/frontend/node_modules/@testing-library/react/dist/pure.js:328:5)
+
+stderr | src/components/common/__tests__/StatusToast.test.tsx > StatusToast > should auto-close after duration
+Warning: An update to StatusToast inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at StatusToast (/Users/aworland/quiz-app/frontend/src/components/common/StatusToast.tsx:8:3)
+Warning: An update to StatusToast inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at StatusToast (/Users/aworland/quiz-app/frontend/src/components/common/StatusToast.tsx:8:3)
+
+ ✓ src/components/questions/__tests__/NoQuestionsNotice.test.tsx (14 tests) 88ms
+stderr | src/components/common/__tests__/StatusToast.test.tsx > StatusToast > should call onClose when close button clicked
+Warning: An update to StatusToast inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at StatusToast (/Users/aworland/quiz-app/frontend/src/components/common/StatusToast.tsx:8:3)
+
+stderr | src/hooks/__tests__/useOnlineStatus.test.ts > useOnlineStatus > should handle rapid online/offline toggling
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (/Users/aworland/quiz-app/frontend/node_modules/@testing-library/react/dist/pure.js:328:5)
+
+stderr | src/components/common/__tests__/StatusToast.test.tsx > StatusToastManager > should call onRemove when toast is dismissed
+Warning: An update to StatusToast inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at StatusToast (/Users/aworland/quiz-app/frontend/src/components/common/StatusToast.tsx:8:3)
+    at div
+    at div
+    at StatusToastManager (/Users/aworland/quiz-app/frontend/src/components/common/StatusToast.tsx:168:31)
+
+ ✓ src/components/common/__tests__/StatusToast.test.tsx (11 tests) 119ms
+stderr | src/hooks/__tests__/useOnlineStatus.test.ts > useOnlineStatus > should handle rapid online/offline toggling
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (/Users/aworland/quiz-app/frontend/node_modules/@testing-library/react/dist/pure.js:328:5)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/components/quiz/__tests__/WaitingForParticipants.test.tsx > WaitingForParticipants > should auto-refresh with countdown when enabled
+Warning: An update to WaitingForParticipants inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at WaitingForParticipants (/Users/aworland/quiz-app/frontend/src/components/quiz/WaitingForParticipants.tsx:10:3)
+
+stderr | src/hooks/__tests__/useOnlineStatus.test.ts > useOnlineStatus > should handle rapid online/offline toggling
+Warning: An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at TestComponent (/Users/aworland/quiz-app/frontend/node_modules/@testing-library/react/dist/pure.js:328:5)
+
+ ✓ src/components/quiz/__tests__/WaitingForParticipants.test.tsx (13 tests) 116ms
+ ✓ src/hooks/__tests__/useOnlineStatus.test.ts (10 tests) 382ms
+ ✓ src/components/common/__tests__/Input.test.tsx (23 tests) 94ms
+ ✓ src/components/quiz/__tests__/SegmentCompleteView.test.tsx (9 tests) 25ms
+ ✓ src/components/quiz/__tests__/EventCompleteView.test.tsx (10 tests) 27ms
+ ✓ src/components/leaderboard/__tests__/MasterLeaderboard.test.tsx (10 tests) 40ms
+stderr | src/pages/__tests__/EventParticipant.test.tsx > EventParticipantPage > disables answering when join status is waiting_for_segment
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+stderr | src/pages/__tests__/EventParticipant.test.tsx > EventParticipantPage > disables answering when quiz is paused for no participants
+Warning: Encountered two children with the same key, `user-1`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+    at div
+    at div
+    at FlappyGame (/Users/aworland/quiz-app/frontend/src/components/flappy/FlappyGame.tsx:9:23)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at EventParticipantPage (/Users/aworland/quiz-app/frontend/src/pages/EventParticipant.tsx:40:56)
+    at RenderedRoute (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:539:7)
+    at Routes (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1273:7)
+    at Router (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1207:17)
+    at MemoryRouter (/Users/aworland/quiz-app/frontend/node_modules/react-router/dist/umd/react-router.development.js:1101:7)
+
+ ✓ src/pages/__tests__/EventParticipant.test.tsx (4 tests) 69ms
+ ✓ src/components/common/__tests__/Tooltip.test.tsx (9 tests) 1131ms
+   ✓ Tooltip > should show tooltip on hover by default 321ms
+   ✓ Tooltip > should accept custom className 306ms
+   ✓ Tooltip > should support ReactNode content 308ms
+ ✓ src/components/quiz/__tests__/ParticipantQuizView.test.tsx (8 tests) 22ms
+ ✓ src/components/common/__tests__/Button.test.tsx (20 tests) 67ms
+ ✓ src/components/recording/__tests__/RecordingControls.test.tsx (14 tests) 61ms
+ ✓ src/components/questions/__tests__/AIServiceErrorNotice.test.tsx (14 tests) 81ms
+ ✓ src/components/leaderboard/__tests__/SegmentLeaderboard.test.tsx (14 tests) 42ms
+ ✓ src/components/display/__tests__/AnimatedLeaderboard.test.tsx (14 tests) 33ms
+ ✓ src/components/event/__tests__/JoinLockReminder.test.tsx (9 tests) 63ms
+ ✓ src/components/quiz/__tests__/QuestionDisplay.test.tsx (12 tests) 27ms
+ ✓ src/components/display/__tests__/QuestionResultsChart.test.tsx (9 tests) 26ms
+ ✓ src/components/recording/__tests__/RecordingStatus.test.tsx (12 tests) 36ms
+ ✓ src/components/quiz/__tests__/PresenterControls.test.tsx (11 tests) 22ms
+stderr | src/components/canvas/__tests__/DrawingCanvas.test.tsx > DrawingCanvas > should have event handlers attached
+Warning: An update to DrawingCanvas inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DrawingCanvas (/Users/aworland/quiz-app/frontend/src/components/canvas/DrawingCanvas.tsx:6:3)
+Warning: An update to DrawingCanvas inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DrawingCanvas (/Users/aworland/quiz-app/frontend/src/components/canvas/DrawingCanvas.tsx:6:3)
+Warning: An update to DrawingCanvas inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at DrawingCanvas (/Users/aworland/quiz-app/frontend/src/components/canvas/DrawingCanvas.tsx:6:3)
+
+ ✓ src/components/canvas/__tests__/DrawingCanvas.test.tsx (8 tests) 40ms
+ ✓ src/components/quiz/__tests__/PassPresenterButton.test.tsx (8 tests) 37ms
+ ✓ src/components/flappy/__tests__/FlappyGame.test.tsx (9 tests) 77ms
+ ✓ src/components/display/__tests__/DisplayModeContainer.test.tsx (8 tests) 18ms
+ ✓ src/components/canvas/__tests__/ColorPalette.test.tsx (6 tests) 56ms
+ ✓ src/components/export/__tests__/ExportErrorNotice.test.tsx (6 tests) 67ms
+ ✓ src/pages/__tests__/EventHost.export.test.tsx (11 tests) 3ms
+ ✓ src/components/questions/__tests__/QuestionEditor.test.tsx (7 tests) 32ms
+ ✓ src/components/canvas/__tests__/CanvasToolbar.test.tsx (10 tests) 103ms
+ ✓ src/components/quiz/__tests__/AnswerProgress.test.tsx (9 tests) 21ms
+ ✓ src/hooks/__tests__/useReconnection.test.ts (6 tests) 77ms
+stderr | src/components/__tests__/ProtectedRoute.test.tsx > ProtectedRoute > should render children when authenticated
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/components/__tests__/ProtectedRoute.test.tsx (5 tests) 18ms
+ ✓ src/components/canvas/__tests__/BrushSizeSelector.test.tsx (6 tests) 53ms
+stderr | src/pages/__tests__/AccountSettingsPage.test.tsx > AccountSettingsPage > updates profile and shows success
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ src/pages/__tests__/AccountSettingsPage.test.tsx (2 tests) 41ms
+ ✓ src/components/event/__tests__/WebRTCUnsupportedNotice.test.tsx (6 tests) 56ms
+ ✓ src/components/questions/__tests__/QuizReadyIndicator.test.tsx (9 tests) 27ms
+ ✓ src/utils/__tests__/retryExport.test.ts (10 tests) 3ms
+stderr | src/components/display/__tests__/ProcessingScreen.test.tsx > ProcessingScreen > should render message
+Warning: Received `false` for a non-boolean attribute `initial`.
+
+If you want to write it to the DOM, pass a string instead: initial="false" or initial={value.toString()}.
+
+If you used to conditionally omit it with initial={condition && value}, pass initial={condition ? value : undefined} instead.
+    at div
+    at div (/Users/aworland/quiz-app/frontend/src/components/display/__tests__/ProcessingScreen.test.tsx:4:13)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at ProcessingScreen (/Users/aworland/quiz-app/frontend/src/components/display/ProcessingScreen.tsx:12:29)
+
+ ✓ src/components/display/__tests__/ProcessingScreen.test.tsx (7 tests) 33ms
+ ✓ src/pages/__tests__/Events.test.tsx (1 test) 84ms
+ ✓ src/components/quiz/__tests__/PresenterQuizView.test.tsx (3 tests) 22ms
+ ✓ src/components/event/__tests__/QRCodeDisplay.test.tsx (8 tests) 38ms
+ ✓ src/hooks/__tests__/useAudioRecording.test.ts (3 tests) 10ms
+ ✓ src/components/recording/__tests__/TranscriptView.test.tsx (7 tests) 21ms
+stderr | src/components/games/__tests__/FlappyBird.test.tsx > FlappyBird > should render game canvas
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/aworland/quiz-app/frontend/src/components/games/FlappyBird.tsx:16:24
+    at commitHookEffectListMount (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27078:3) undefined
+
+stderr | src/components/games/__tests__/FlappyBird.test.tsx > FlappyBird > should display initial score of 0
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/aworland/quiz-app/frontend/src/components/games/FlappyBird.tsx:16:24
+    at commitHookEffectListMount (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27078:3) undefined
+
+ ✓ src/components/games/__tests__/FlappyBird.test.tsx (3 tests) 23ms
+stderr | src/components/games/__tests__/FlappyBird.test.tsx > FlappyBird > should call onScore callback when provided
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/aworland/quiz-app/frontend/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/aworland/quiz-app/frontend/src/components/games/FlappyBird.tsx:16:24
+    at commitHookEffectListMount (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (/Users/aworland/quiz-app/frontend/node_modules/react-dom/cjs/react-dom.development.js:27078:3) undefined
+
+
+ Test Files  71 passed (71)
+      Tests  751 passed (751)
+   Start at  10:43:21
+   Duration  9.98s (transform 1.22s, setup 17.09s, collect 6.94s, tests 6.38s, environment 44.32s, prepare 5.15s)
+

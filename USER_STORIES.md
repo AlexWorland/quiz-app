@@ -463,6 +463,73 @@ This document contains user stories for the quiz application, organized by featu
 **I want** event titles to support emojis and special characters
 **So that** I can create engaging and expressive event names.
 
+### User Story: Host Join Own Event ✅ IMPLEMENTED
+**As a** host
+**I want** a "Join Event" button on the event details page
+**So that** I can participate in my own event as a player.
+
+### User Story: Manage Event While Participating ✅ IMPLEMENTED
+**As a** host participating in my own event
+**I want** a "Manage Event" button visible during the event
+**So that** I can switch to the management view without leaving the event.
+
+### User Story: Preserve Host Session When Managing ✅ IMPLEMENTED
+**As a** host
+**I want** my scores, answers, and participant status to persist when I switch between participant and management views
+**So that** I don't lose progress or get disconnected when managing my event.
+
+---
+
+## Real-time Synchronization
+
+### User Story: Synchronized Phase Transitions ✅ IMPLEMENTED
+**As** the system
+**I want** all participants to see phase transitions (new question, reveal, leaderboard) within 1-2 seconds of each other
+**So that** everyone experiences the quiz together in real-time.
+**Implementation:** Sequential WebSocket broadcast achieves <100ms spread for ≤10 participants.
+
+### User Story: Synchronized Flappy Bird Appearance ✅ IMPLEMENTED
+**As** the system
+**I want** Flappy Bird to appear for all participants within 1 second when quiz generation starts
+**So that** everyone begins the wait experience simultaneously.
+**Implementation:** quiz_generating WebSocket message broadcast.
+
+### User Story: Synchronized Flappy Bird Disappearance ✅ IMPLEMENTED
+**As** the system
+**I want** Flappy Bird to disappear for all participants within 1 second when the quiz is ready
+**So that** everyone transitions to the quiz at the same time.
+**Implementation:** quiz_ready WebSocket message broadcast.
+
+### User Story: Synchronized Question Display ✅ IMPLEMENTED
+**As** the system
+**I want** all participants to see the same question appear within 1 second
+**So that** the timer starts fairly for everyone.
+**Implementation:** Sequential broadcast with server-side question_started_at timestamp.
+
+### User Story: Synchronized Leaderboard Display ✅ IMPLEMENTED
+**As** the system
+**I want** all participants to see the leaderboard at the same time
+**So that** the competitive experience feels shared and immediate.
+**Implementation:** Sequential broadcast, imperceptible for small groups.
+
+### Edge Case: Network Latency Variation ✅ IMPLEMENTED
+**As** the system
+**I want to** handle participants with varying network speeds (50ms to 500ms latency)
+**So that** slower connections don't feel left behind but timing remains fair.
+**Implementation:** 500ms grace period for answer submission timing.
+
+### Edge Case: WebSocket Message Delivery Order ✅ IMPLEMENTED
+**As** the system
+**I want to** ensure WebSocket messages arrive in the correct order for all clients
+**So that** no participant sees the answer before the question.
+**Implementation:** Single-threaded sequential broadcast guarantees order.
+
+### Edge Case: Clock Skew Between Devices ✅ IMPLEMENTED
+**As** the system
+**I want** timing to be server-authoritative rather than client-side
+**So that** participants with incorrect device clocks don't get unfair advantages.
+**Implementation:** Server sets question_started_at, all timing calculations server-side.
+
 ---
 
 ## Account Management (Admins Only)
@@ -500,9 +567,19 @@ This document contains user stories for the quiz application, organized by featu
 | Mega Quiz & Event Completion | 5 |
 | Data Export & Persistence | 5 |
 | Reliability & Edge Cases | 11 |
-| Event Management | 6 |
+| Event Management | 9 |
+| Real-time Synchronization | 8 |
 | Account Management (Admins Only) | 3 |
-| **Total** | **85** |
+| **Total** | **96** |
+
+### Implementation Status
+
+| Status | Count | Percentage |
+|--------|-------|------------|
+| ✅ Fully Implemented | 96 | 100% |
+| ⚠️ Not Implemented | 0 | 0% |
+
+**All User Stories Implemented!** 🎉
 
 ---
 

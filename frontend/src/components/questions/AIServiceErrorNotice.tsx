@@ -2,7 +2,7 @@ import { AlertTriangle, RotateCcw, Zap, SkipForward } from 'lucide-react'
 import { Button } from '@/components/common/Button'
 
 interface AIServiceErrorNoticeProps {
-  errorType: 'service_unavailable' | 'rate_limit' | 'connection_error' | 'unknown'
+  errorType: 'service_unavailable' | 'rate_limit' | 'connection_error' | 'unknown' | 'microphone_error' | 'generation_error'
   segmentTitle?: string
   presenterName: string
   onRetryGeneration: () => void
@@ -41,6 +41,20 @@ export function AIServiceErrorNotice({
           title: 'Connection Failed',
           message: 'Failed to connect to the question generation service.',
           details: 'Check your internet connection and try again.',
+          icon: AlertTriangle,
+        }
+      case 'microphone_error':
+        return {
+          title: 'Microphone Access Denied',
+          message: 'Could not access your microphone for recording.',
+          details: 'Please grant microphone permissions in your browser settings and try again.',
+          icon: AlertTriangle,
+        }
+      case 'generation_error':
+        return {
+          title: 'Quiz Generation Failed',
+          message: 'Failed to generate quiz from your presentation.',
+          details: 'The recording may have been too short or unclear. Try recording again.',
           icon: AlertTriangle,
         }
       default:

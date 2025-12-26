@@ -1,13 +1,16 @@
 """FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.database import close_db
+from app.database import close_db, get_db
 
 
 settings = get_settings()
@@ -41,14 +44,21 @@ app.add_middleware(
 
 
 @app.get("/api/health")
-async def health_check() -> dict[str, Any]:
+async def health_check(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, Any]:
     """Health check endpoint."""
+    db_healthy = False
+    try:
+        await db.execute(select(1))
+        db_healthy = True
+    except Exception as e:
+        logging.error(f"Database health check failed: {e}")
+    
     return {
-        "status": "healthy",
-        "database": True,  # TODO: Add actual DB check
+        "status": "healthy" if db_healthy else "degraded",
+        "database": db_healthy,
         "providers": {
-            "llm": settings.default_ai_provider,
-            "stt": settings.default_stt_provider,
+            "ai": settings.default_ai_provider,
+            "transcription": "whisper",
         },
     }
 

@@ -126,7 +126,7 @@ describe('API Endpoints', () => {
       const data = {
         title: 'Test Event',
         description: 'Test Description',
-        mode: 'normal' as const,
+        mode: 'listen_only' as const,
         num_fake_answers: 3,
         time_per_question: 30,
       };

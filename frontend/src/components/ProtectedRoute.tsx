@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useEffect, useState } from 'react'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -16,6 +17,29 @@ interface ProtectedRouteProps {
  */
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { isAuthenticated, user, sessionToken } = useAuthStore()
+  const [hasHydrated, setHasHydrated] = useState(false)
+
+  useEffect(() => {
+    // Check if already hydrated
+    if (useAuthStore.persist.hasHydrated()) {
+      setHasHydrated(true)
+      return
+    }
+
+    // Wait for hydration to complete
+    const unsubscribe = useAuthStore.persist.onFinishHydration(() => {
+      setHasHydrated(true)
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [])
+
+  // Show nothing while waiting for hydration
+  if (!hasHydrated) {
+    return null
+  }
 
   // Allow access if user is authenticated OR has a valid session token (anonymous participant)
   const hasAccess = isAuthenticated || !!sessionToken

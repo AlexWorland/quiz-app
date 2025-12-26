@@ -285,7 +285,7 @@ describe('authStore', () => {
       expect(parsed.state.token).toBe(token);
     });
 
-    it('should only persist user and token, not isAuthenticated', () => {
+    it('should persist user, token, and isAuthenticated', () => {
       const user: User = {
         id: '1',
         username: 'testuser',
@@ -303,8 +303,8 @@ describe('authStore', () => {
       expect(parsed.state.user).toBeTruthy();
       expect(parsed.state.token).toBeTruthy();
       
-      // Should not have isAuthenticated (it's computed from user/token presence)
-      expect(parsed.state.isAuthenticated).toBeUndefined();
+      // Should have isAuthenticated (persisted to prevent hydration race conditions)
+      expect(parsed.state.isAuthenticated).toBe(true);
     });
   });
 });

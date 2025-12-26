@@ -36,7 +36,7 @@ describe('EventsPage', () => {
       title: 'New Event Title',
       description: 'Desc',
       join_code: 'ABC123',
-      mode: 'normal',
+      mode: 'listen_only',
       status: 'waiting',
       num_fake_answers: 3,
       time_per_question: 30,
@@ -54,7 +54,6 @@ describe('EventsPage', () => {
     await waitFor(() => expect(mockListEvents).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getByRole('button', { name: /new event/i }))
     fireEvent.change(screen.getByLabelText(/event title/i), { target: { value: newEvent.title } })
-    fireEvent.click(screen.getByRole('radio', { name: /traditional/i }))
 
     const modal = screen.getByText(/create new event/i).closest('div') as HTMLElement
     const createButton = within(modal).getByRole('button', { name: /create event/i })

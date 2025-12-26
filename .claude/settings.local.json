@@ -120,7 +120,8 @@
       "Bash(./scripts/run-all-tests-local.sh:*)",
       "Bash(/Users/aworland/quiz-app/scripts/start-local-dev.sh --help)",
       "Bash(/Users/aworland/quiz-app/scripts/run-all-tests-local.sh:*)",
-      "Bash(export PATH=\"/opt/homebrew/opt/postgresql@15/bin:$PATH\")"
+      "Bash(export PATH=\"/opt/homebrew/opt/postgresql@15/bin:$PATH\")",
+      "Bash(gh auth:*)"
     ]
   },
   "outputStyle": "Explanatory"

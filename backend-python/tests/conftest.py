@@ -19,6 +19,8 @@ from app.models import (
     SegmentScore,
     CanvasStroke,
     PresentationTranscript,
+    AudioChunk,
+    ProcessingLog,
 )
 
 
@@ -80,7 +82,7 @@ async def test_session(test_engine):
                 TRUNCATE TABLE users, events, segments, questions,
                                event_participants, segment_scores,
                                canvas_strokes, presentation_transcripts,
-                               join_attempts
+                               join_attempts, audio_chunks, processing_logs
                 CASCADE
             """))
             await session.commit()

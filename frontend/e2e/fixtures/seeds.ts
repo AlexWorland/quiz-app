@@ -28,7 +28,7 @@ export async function seedEventWithSegment(
 
   const event = await createEvent(page, {
     title: `E2E Event ${Date.now()}`,
-    mode: options?.mode ?? 'normal',
+    mode: options?.mode ?? 'listen_only',
   });
 
   const segment = await createSegment(page, event.id, {

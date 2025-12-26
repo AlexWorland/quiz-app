@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Pencil } from 'lucide-react'
+import { ArrowLeft, Pencil, Settings } from 'lucide-react'
 
 import { useAuthStore } from '@/store/authStore'
 import { ChangeDisplayName } from '@/components/event/ChangeDisplayName'
@@ -13,6 +13,7 @@ import { EventCompleteView } from '@/components/quiz/EventCompleteView'
 import { SegmentLeaderboard } from '@/components/leaderboard/SegmentLeaderboard'
 import { MasterLeaderboard } from '@/components/leaderboard/MasterLeaderboard'
 import { FlappyGame } from '@/components/flappy/FlappyGame'
+import { FlappyBird } from '@/components/games/FlappyBird'
 import { Button } from '@/components/common/Button'
 
 import {
@@ -26,6 +27,7 @@ import {
 import {
   useEventWebSocket,
   type ServerMessage,
+  type GameMessage,
   type Participant,
   type LeaderboardEntry as WsLeaderboardEntry,
   type SegmentWinner,
@@ -70,6 +72,7 @@ export function EventParticipantPage() {
   const [showNameChange, setShowNameChange] = useState(false)
   const [displayName, setDisplayName] = useState<string>(user?.username ?? '')
   const [participantId, setParticipantId] = useState<string | null>(null)
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false)
 
   // Quiz phase state for enhanced message handling
   const [currentPresenterId, setCurrentPresenterId] = useState<string | null>(null)
@@ -115,7 +118,12 @@ export function EventParticipantPage() {
     }
   }
 
-  const { isConnected, sendMessage, reconnection } = useEventWebSocket({
+  // Track whether we're waiting for a presenter to be selected or to start
+  const [pendingPresenterName, setPendingPresenterName] = useState<string | null>(null)
+  const [isPendingPresenterSelf, setIsPendingPresenterSelf] = useState(false)
+  const [isWaitingForPresenter, setIsWaitingForPresenter] = useState(false)
+
+  const { isConnected, sendMessage, reconnection, pendingPresenter, isPendingPresenter } = useEventWebSocket({
     eventId: eventId ?? '',
     onMessage: (msg: ServerMessage) => {
       if (msg.type === 'connected') {
@@ -265,6 +273,31 @@ export function EventParticipantPage() {
           setInfoMessage('Time expired. Your answer was not recorded.')
           setHasAnswered(false)
         }
+      } else if (msg.type === 'quiz_generating') {
+        setIsGeneratingQuiz(true)
+      } else if (msg.type === 'quiz_ready') {
+        setIsGeneratingQuiz(false)
+      } else if (msg.type === 'presenter_selected') {
+        // A presenter has been selected but hasn't started yet
+        setPendingPresenterName(msg.presenter_name)
+        setIsPendingPresenterSelf(user ? msg.presenter_id === user.id : false)
+        setIsWaitingForPresenter(false)
+      } else if (msg.type === 'presentation_started') {
+        // Presenter has started - clear pending state
+        setPendingPresenterName(null)
+        setIsPendingPresenterSelf(false)
+        setIsWaitingForPresenter(false)
+        setCurrentPresenterId(msg.presenter_id)
+        setCurrentPresenterName(msg.presenter_name)
+        // If current user is the presenter, redirect to host view
+        if (user && msg.presenter_id === user.id) {
+          navigate(`/events/${eventId}/host/${msg.segment_id}`)
+        }
+      } else if (msg.type === 'waiting_for_presenter') {
+        // No presenter selected yet
+        setIsWaitingForPresenter(true)
+        setPendingPresenterName(null)
+        setIsPendingPresenterSelf(false)
       }
     },
   })
@@ -297,6 +330,11 @@ export function EventParticipantPage() {
   }
 
   const hasActiveQuestion = !!currentQuestionId && !!questionStartedAt
+
+  const handleStartPresentation = () => {
+    const message: GameMessage = { type: 'start_presentation' }
+    sendMessage(message)
+  }
 
   const isPresenter = useMemo(() => {
     if (!user || !currentPresenterId) return false
@@ -361,6 +399,17 @@ export function EventParticipantPage() {
               </div>
             )}
           </div>
+          {/* Manage Event button (only shown to host) */}
+          {user && event.host_id === user.id && (
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/events/${eventId}`)}
+              className="flex items-center gap-2"
+            >
+              <Settings size={16} />
+              Manage Event
+            </Button>
+          )}
           <div className="text-right">
             {user && (
               <>
@@ -453,13 +502,57 @@ export function EventParticipantPage() {
             {!gameStarted && !hasActiveQuestion && (
               <div className="space-y-3">
                 <div className="bg-dark-900 rounded-lg p-4 border border-dark-700">
-                  <h2 className="text-lg font-semibold text-white mb-1">
-                    Waiting for host to start the quiz
-                  </h2>
-                  <p className="text-sm text-gray-400">
-                    In the meantime, tap or press space to flap your bird in the lobby –
-                    all players&apos; birds are visible here.
-                  </p>
+                  {/* Show different states based on presenter selection */}
+                  {isPendingPresenterSelf || isPendingPresenter ? (
+                    // Current user is the selected presenter - show start button
+                    <>
+                      <h2 className="text-lg font-semibold text-cyan-400 mb-1">
+                        You&apos;ve been selected as presenter
+                      </h2>
+                      <p className="text-sm text-gray-400 mb-4">
+                        When you&apos;re ready, click the button below to start your presentation segment.
+                        Recording will begin automatically.
+                      </p>
+                      <Button onClick={handleStartPresentation} className="w-full">
+                        Start Presentation
+                      </Button>
+                    </>
+                  ) : pendingPresenterName || pendingPresenter ? (
+                    // Another user is the selected presenter - waiting for them to start
+                    <>
+                      <h2 className="text-lg font-semibold text-white mb-1">
+                        Waiting for presenter to start
+                      </h2>
+                      <p className="text-sm text-gray-400">
+                        <span className="text-cyan-400 font-medium">
+                          {pendingPresenterName || pendingPresenter?.name}
+                        </span>{' '}
+                        has been selected as the presenter. Waiting for them to begin their presentation.
+                      </p>
+                    </>
+                  ) : isWaitingForPresenter ? (
+                    // No presenter selected yet
+                    <>
+                      <h2 className="text-lg font-semibold text-white mb-1">
+                        Waiting for host to select a presenter
+                      </h2>
+                      <p className="text-sm text-gray-400">
+                        The host will select a presenter to begin the next segment.
+                        In the meantime, tap or press space to flap your bird in the lobby.
+                      </p>
+                    </>
+                  ) : (
+                    // Default state - waiting for quiz to start
+                    <>
+                      <h2 className="text-lg font-semibold text-white mb-1">
+                        Waiting for host to start the quiz
+                      </h2>
+                      <p className="text-sm text-gray-400">
+                        In the meantime, tap or press space to flap your bird in the lobby –
+                        all players&apos; birds are visible here.
+                      </p>
+                    </>
+                  )}
                 </div>
                 <FlappyGame participants={participants} currentUserId={user?.id} />
               </div>
@@ -534,6 +627,13 @@ export function EventParticipantPage() {
             onNameChange={handleNameChange}
             onClose={() => setShowNameChange(false)}
           />
+        )}
+
+        {/* Flappy Bird during quiz generation */}
+        {isGeneratingQuiz && (
+          <div className="fixed inset-0 bg-slate-900/95 z-50 flex items-center justify-center">
+            <FlappyBird />
+          </div>
         )}
       </div>
     </div>

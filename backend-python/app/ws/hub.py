@@ -29,6 +29,9 @@ class GameState:
     quiz_phase: QuizPhase = QuizPhase.NOT_STARTED
     presenter_paused: bool = False
     presenter_pause_reason: str | None = None
+    # Pending presenter - selected but not yet started presentation
+    pending_presenter_id: UUID | None = None
+    pending_presenter_name: str | None = None
     # Cached questions for the active segment; each entry contains id, text, and correct_answer.
     questions: list[dict[str, Any]] = field(default_factory=list)
     participants: dict[UUID, ParticipantInfo] = field(default_factory=dict)
@@ -58,25 +61,30 @@ class Hub:
         self.event_sessions: dict[UUID, EventSession] = {}
         self._lock = asyncio.Lock()
 
+    def _get_or_create_session_unsafe(self, event_id: UUID) -> EventSession:
+        """Get or create an event session. Must be called with lock held."""
+        if event_id not in self.event_sessions:
+            self.event_sessions[event_id] = EventSession(event_id=event_id)
+        return self.event_sessions[event_id]
+
     async def get_or_create_session(self, event_id: UUID) -> EventSession:
         """Get or create an event session."""
         async with self._lock:
-            if event_id not in self.event_sessions:
-                self.event_sessions[event_id] = EventSession(event_id=event_id)
-            return self.event_sessions[event_id]
+            return self._get_or_create_session_unsafe(event_id)
 
     async def connect(
         self, event_id: UUID, user_id: UUID, websocket: WebSocket
     ) -> EventSession:
         """Connect a user to an event session."""
-        session = await self.get_or_create_session(event_id)
-        session.connections[user_id] = websocket
-        session.connection_states[user_id] = 'connected'
-        
-        # Start heartbeat tracking for this connection
-        await heartbeat_manager.start_heartbeat(user_id, websocket)
-        
-        return session
+        async with self._lock:
+            session = self._get_or_create_session_unsafe(event_id)
+            session.connections[user_id] = websocket
+            session.connection_states[user_id] = 'connected'
+            
+            # Start heartbeat tracking for this connection
+            await heartbeat_manager.start_heartbeat(user_id, websocket)
+            
+            return session
 
     async def disconnect(self, event_id: UUID, user_id: UUID, permanent: bool = False) -> None:
         """
@@ -87,45 +95,52 @@ class Hub:
             user_id: User to disconnect
             permanent: If True, mark as permanently disconnected. If False, mark as temporarily disconnected.
         """
-        if event_id in self.event_sessions:
-            session = self.event_sessions[event_id]
-            session.connections.pop(user_id, None)
-            
-            # Update connection state
-            if permanent:
-                session.connection_states[user_id] = 'disconnected'
-            else:
-                session.connection_states[user_id] = 'temporarily_disconnected'
-            
-            # Stop heartbeat tracking
-            heartbeat_manager.stop_heartbeat(user_id)
-            
-            participant = session.game_state.participants.get(user_id)
-            if participant:
-                participant.online = False
+        async with self._lock:
+            if event_id in self.event_sessions:
+                session = self.event_sessions[event_id]
+                session.connections.pop(user_id, None)
+                
+                # Update connection state
+                if permanent:
+                    session.connection_states[user_id] = 'disconnected'
+                else:
+                    session.connection_states[user_id] = 'temporarily_disconnected'
+                
+                # Stop heartbeat tracking
+                heartbeat_manager.stop_heartbeat(user_id)
+                
+                participant = session.game_state.participants.get(user_id)
+                if participant:
+                    participant.online = False
 
     async def add_participant(
         self, event_id: UUID, participant: ParticipantInfo
     ) -> None:
         """Add a participant to an event."""
-        session = await self.get_or_create_session(event_id)
-        participant.online = True
-        session.game_state.participants[participant.user_id] = participant
+        async with self._lock:
+            session = self._get_or_create_session_unsafe(event_id)
+            participant.online = True
+            session.game_state.participants[participant.user_id] = participant
 
     async def broadcast(self, event_id: UUID, message: dict[str, Any]) -> None:
         """Broadcast a message to all connections in an event."""
+        # Get connections to broadcast to (read operation, can be outside lock for better performance)
         if event_id not in self.event_sessions:
             return
 
         session = self.event_sessions[event_id]
+        # Create a snapshot of connections to avoid holding lock during network I/O
+        async with self._lock:
+            connections = dict(session.connections.items())
+        
         disconnected = []
-
-        for user_id, websocket in session.connections.items():
+        for user_id, websocket in connections.items():
             try:
                 await websocket.send_json(message)
             except Exception:
                 disconnected.append(user_id)
 
+        # Handle disconnections (this acquires lock internally)
         for user_id in disconnected:
             await self.disconnect(event_id, user_id)
 
@@ -253,19 +268,20 @@ class Hub:
         Returns:
             The event session
         """
-        session = await self.get_or_create_session(event_id)
-        session.connections[user_id] = websocket
-        session.connection_states[user_id] = 'connected'
-        
-        # Restart heartbeat tracking
-        await heartbeat_manager.start_heartbeat(user_id, websocket)
-        
-        # Mark participant as online
-        participant = session.game_state.participants.get(user_id)
-        if participant:
-            participant.online = True
-        
-        return session
+        async with self._lock:
+            session = self._get_or_create_session_unsafe(event_id)
+            session.connections[user_id] = websocket
+            session.connection_states[user_id] = 'connected'
+            
+            # Restart heartbeat tracking
+            await heartbeat_manager.start_heartbeat(user_id, websocket)
+            
+            # Mark participant as online
+            participant = session.game_state.participants.get(user_id)
+            if participant:
+                participant.online = True
+            
+            return session
 
     async def cleanup_stale_connections(self) -> dict[UUID, list[UUID]]:
         """

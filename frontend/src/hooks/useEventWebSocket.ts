@@ -80,6 +80,9 @@ export type ServerMessage =
   | { type: 'presenter_disconnected'; presenter_id: string; presenter_name: string; segment_id: string }
   | { type: 'presenter_paused'; presenter_id: string; presenter_name: string; segment_id: string; question_index: number; total_questions: number; reason?: string }
   | { type: 'presenter_override_needed'; presenter_id: string; presenter_name: string; segment_id: string }
+  | { type: 'presenter_selected'; presenter_id: string; presenter_name: string; is_first_presenter: boolean }
+  | { type: 'presentation_started'; segment_id: string; presenter_id: string; presenter_name: string }
+  | { type: 'waiting_for_presenter'; event_id: string; participant_count: number }
   | { type: 'segment_complete'; segment_id: string; segment_title: string; presenter_name: string; segment_leaderboard: LeaderboardEntry[]; event_leaderboard: LeaderboardEntry[]; segment_winner?: LeaderboardEntry; event_leader?: LeaderboardEntry }
   | { type: 'event_complete'; event_id: string; final_leaderboard: LeaderboardEntry[]; winner?: LeaderboardEntry; segment_winners: SegmentWinner[] }
   | {
@@ -91,6 +94,8 @@ export type ServerMessage =
       single_segment_mode?: 'remix' | 'skip'
     }
   | { type: 'mega_quiz_started'; event_id: string; question_count: number }
+  | { type: 'quiz_generating'; segment_id: string }
+  | { type: 'quiz_ready'; segment_id: string; questions_count: number; auto_start?: boolean }
   | { type: 'ping' }
   | {
       type: 'state_restored'
@@ -117,6 +122,8 @@ export type GameMessage =
   | { type: 'end_game' }
   | { type: 'pass_presenter'; next_presenter_user_id: string }
   | { type: 'admin_select_presenter'; presenter_user_id: string; segment_id: string }
+  | { type: 'select_presenter'; presenter_user_id: string }
+  | { type: 'start_presentation'; title?: string }
   | { type: 'resume_segment'; segment_id: string }
   | { type: 'start_mega_quiz'; question_count?: number }
   | { type: 'skip_mega_quiz' }
@@ -137,7 +144,10 @@ export function useEventWebSocket(options: UseEventWebSocketOptions) {
   const [shouldReconnect, setShouldReconnect] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [currentPresenter, setCurrentPresenter] = useState<{ id: string; name: string } | null>(null)
+  const [pendingPresenter, setPendingPresenter] = useState<{ id: string; name: string; isFirstPresenter: boolean } | null>(null)
+  const [currentSegmentId, setCurrentSegmentId] = useState<string | null>(null)
   const [isPresenter, setIsPresenter] = useState(false)
+  const [isPendingPresenter, setIsPendingPresenter] = useState(false)
   const [presenterPaused, setPresenterPaused] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const token = useAuthStore((state) => state.token)
@@ -193,13 +203,42 @@ export function useEventWebSocket(options: UseEventWebSocketOptions) {
           setParticipants((prev) => [...prev, { ...message.user, online: true }])
         } else if (message.type === 'participant_left') {
           setParticipants((prev) => prev.filter((p) => p.id !== message.user_id))
+        } else if (message.type === 'presenter_selected') {
+          // Track pending presenter (selected but not yet started)
+          setPendingPresenter({
+            id: message.presenter_id,
+            name: message.presenter_name,
+            isFirstPresenter: message.is_first_presenter
+          })
+          // Check if current user is the pending presenter
+          if (user && message.presenter_id === user.id) {
+            setIsPendingPresenter(true)
+          } else {
+            setIsPendingPresenter(false)
+          }
+        } else if (message.type === 'presentation_started') {
+          // Presentation started - update segment and presenter info
+          setCurrentSegmentId(message.segment_id)
+          setCurrentPresenter({
+            id: message.presenter_id,
+            name: message.presenter_name
+          })
+          setPendingPresenter(null)
+          setIsPendingPresenter(false)
+          // Check if current user is the presenter
+          if (user && message.presenter_id === user.id) {
+            setIsPresenter(true)
+          }
         } else if (message.type === 'presenter_changed') {
           // Update current presenter info
           setCurrentPresenter({
             id: message.new_presenter_id,
             name: message.new_presenter_name
           })
+          setCurrentSegmentId(message.segment_id)
           setPresenterPaused(false)
+          setPendingPresenter(null)
+          setIsPendingPresenter(false)
           // Check if current user is the new presenter
           if (user && message.new_presenter_id === user.id) {
             setIsPresenter(true)
@@ -275,7 +314,10 @@ export function useEventWebSocket(options: UseEventWebSocketOptions) {
     isConnected,
     participants,
     currentPresenter,
+    pendingPresenter,
+    currentSegmentId,
     isPresenter,
+    isPendingPresenter,
     presenterPaused,
     sendMessage,
     connect,

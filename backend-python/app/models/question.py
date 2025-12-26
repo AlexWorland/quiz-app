@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -18,6 +19,7 @@ class Question(Base):
     segment_id: Mapped[UUID] = mapped_column(ForeignKey("segments.id"), index=True)
     question_text: Mapped[str] = mapped_column(Text)
     correct_answer: Mapped[str] = mapped_column(String(500))
+    fake_answers: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
     is_ai_generated: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     source_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)

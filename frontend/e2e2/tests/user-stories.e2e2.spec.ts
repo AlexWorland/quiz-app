@@ -114,7 +114,6 @@ test.describe('User stories (e2e2)', () => {
     const title = `Story Event ${Date.now()}`
     await page.getByLabel('Event Title').fill(title)
     await page.getByLabel('Description (optional)').fill('Story-based e2e2 coverage')
-    await page.getByRole('radio', { name: /Traditional/i }).click()
     await page.locator('form').getByRole('button', { name: 'Create Event' }).first().click()
 
     const card = page.locator('div.bg-dark-900').filter({ has: page.getByRole('heading', { name: title }) }).first()

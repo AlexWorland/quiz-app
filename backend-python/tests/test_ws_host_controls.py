@@ -56,6 +56,7 @@ def test_build_question_payload_has_expected_shape():
         question_id=question_id,
         question_text="What is 2+2?",
         correct_answer="4",
+        fake_answers=["3", "5", "6"],
         total_questions=3,
         time_limit=25,
         index=1,
@@ -65,6 +66,8 @@ def test_build_question_payload_has_expected_shape():
     assert message.question_number == 2  # index is zero-based
     assert message.total_questions == 3
     assert message.text == "What is 2+2?"
-    assert message.answers == ["4"]
+    # Answers should be shuffled, so just check correct answer is in there
+    assert "4" in message.answers
+    assert len(message.answers) == 4  # 1 correct + 3 fake
     assert message.time_limit == 25
 

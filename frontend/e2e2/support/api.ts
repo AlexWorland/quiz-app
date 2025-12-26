@@ -120,7 +120,7 @@ export async function createEventViaApi(
     data: {
       title,
       description: 'e2e2 user-story event',
-      mode: 'normal',
+      mode: 'listen_only',
       num_fake_answers: 3,
       time_per_question: 30,
     },

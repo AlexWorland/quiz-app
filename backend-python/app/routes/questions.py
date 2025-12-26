@@ -66,6 +66,7 @@ async def create_question(
         segment_id=segment.id,
         question_text=request.question_text,
         correct_answer=request.correct_answer,
+        fake_answers=request.fake_answers,
         order_index=order_index,
         is_ai_generated=False,
     )
@@ -141,6 +142,8 @@ async def update_question(
         question.question_text = request.question_text
     if request.correct_answer is not None:
         question.correct_answer = request.correct_answer
+    if request.fake_answers is not None:
+        question.fake_answers = request.fake_answers
     if request.order_index is not None:
         question.order_index = request.order_index
 

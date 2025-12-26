@@ -11,6 +11,7 @@ class CreateQuestionRequest(BaseModel):
 
     question_text: str = Field(..., min_length=1)
     correct_answer: str = Field(..., min_length=1)
+    fake_answers: list[str] | None = None
     order_index: int | None = None
 
 
@@ -19,6 +20,7 @@ class UpdateQuestionRequest(BaseModel):
 
     question_text: str | None = None
     correct_answer: str | None = None
+    fake_answers: list[str] | None = None
     order_index: int | None = None
 
 
@@ -31,6 +33,7 @@ class QuestionResponse(BaseModel):
     segment_id: UUID
     question_text: str
     correct_answer: str
+    fake_answers: list[str] | None = None
     order_index: int
     is_ai_generated: bool | None = None
     source_transcript: str | None = None

@@ -35,3 +35,5 @@ cryptography>=42.0.0
 
 # QR codes
 qrcode[pil]>=7.4.0
+
+# Audio processing (using ffmpeg directly via subprocess - pydub doesn't support Python 3.14)

@@ -68,7 +68,7 @@ async function mockApiRequest(method: string, endpoint: string, data?: any): Pro
       id,
       join_code: randomJoinCode(),
       title: data?.title || 'Mock Event',
-      mode: data?.mode ?? 'normal',
+      mode: data?.mode ?? 'listen_only',
     };
     mockDb.events.set(id, event);
     return event;

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Iterable
+from typing import Any, Iterable
 from uuid import UUID
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.database import get_db
+from app.database import async_session_maker, get_db
 from app.models import Event, EventParticipant, JoinStatus, Question, Segment, SegmentScore, SegmentStatus
 from app.services.mega_quiz import (
     aggregate_event_questions,
@@ -36,15 +36,20 @@ from app.ws.messages import (
     ParticipantJoinedMessage,
     ParticipantLeftMessage,
     PhaseChangedMessage,
+    PresentationStartedMessage,
+    PresenterChangedMessage,
+    PresenterDisconnectedMessage,
+    PresenterOverrideNeededMessage,
+    PresenterPausedMessage,
+    PresenterSelectedMessage,
     QuestionMessage,
     QuizPhase,
     RevealMessage,
     SegmentCompleteMessage,
     SegmentWinner,
-    PresenterChangedMessage,
-    PresenterDisconnectedMessage,
-    PresenterOverrideNeededMessage,
-    PresenterPausedMessage,
+    SelectPresenterMessage,
+    StartPresentationMessage,
+    WaitingForPresenterMessage,
     parse_client_message,
 )
 
@@ -79,17 +84,24 @@ def _build_question_payload(
     question_id: UUID,
     question_text: str,
     correct_answer: str,
+    fake_answers: list[str],
     total_questions: int,
     time_limit: int,
     index: int,
 ) -> QuestionMessage:
     """Build a QuestionMessage for broadcasting."""
+    import random
+    
+    # Combine correct and fake answers, then shuffle
+    all_answers = [correct_answer] + (fake_answers or [])
+    random.shuffle(all_answers)
+    
     return QuestionMessage(
         question_id=question_id,
         question_number=index + 1,
         total_questions=total_questions,
         text=question_text,
-        answers=[correct_answer],
+        answers=all_answers,
         time_limit=time_limit,
     )
 
@@ -409,15 +421,17 @@ async def websocket_event(websocket: WebSocket, event_id: str):
                 avatar_url = data.get("avatar_url")
 
                 # Try to hydrate from DB if participant exists
-                async for db in get_db():
-                    participant_row = await db.get(EventParticipant, user_id)
-                    if participant_row:
-                        username = participant_row.display_name
-                        avatar_url = participant_row.avatar_url or avatar_url
-                        join_status = participant_row.join_status or join_status
-                        is_late_joiner = participant_row.is_late_joiner or is_late_joiner
-                        joined_at = participant_row.join_timestamp or joined_at
-                    break
+                async with async_session_maker() as db:
+                    try:
+                        participant_row = await db.get(EventParticipant, user_id)
+                        if participant_row:
+                            username = participant_row.display_name
+                            avatar_url = participant_row.avatar_url or avatar_url
+                            join_status = participant_row.join_status or join_status
+                            is_late_joiner = participant_row.is_late_joiner or is_late_joiner
+                            joined_at = participant_row.join_timestamp or joined_at
+                    except Exception:
+                        pass  # Use defaults if DB lookup fails
 
                 # Get existing participants
                 state = hub.get_game_state(event_uuid)
@@ -435,11 +449,13 @@ async def websocket_event(websocket: WebSocket, event_id: str):
                     # Get participant's current score from database
                     your_score = 0
                     your_answer = None
-                    async for db in get_db():
-                        participant_row = await db.get(EventParticipant, user_id)
-                        if participant_row:
-                            your_score = participant_row.total_score
-                        break
+                    async with async_session_maker() as db:
+                        try:
+                            participant_row = await db.get(EventParticipant, user_id)
+                            if participant_row:
+                                your_score = participant_row.total_score
+                        except Exception:
+                            pass  # Use default score if DB lookup fails
                     
                     # Check if participant has answered current question
                     if state and state.answers_received:
@@ -528,6 +544,7 @@ async def websocket_event(websocket: WebSocket, event_id: str):
                                 question_id=current_question["id"],
                                 question_text=current_question["text"],
                                 correct_answer=current_question["correct_answer"],
+                                fake_answers=current_question.get("fake_answers", []),
                                 total_questions=total_questions,
                                 time_limit=session.game_state.time_limit_seconds,
                                 index=question_index,
@@ -567,6 +584,7 @@ async def websocket_event(websocket: WebSocket, event_id: str):
                                 question_id=current_question["id"],
                                 question_text=current_question["text"],
                                 correct_answer=current_question["correct_answer"],
+                                fake_answers=current_question.get("fake_answers", []),
                                 total_questions=total_questions,
                                 time_limit=session.game_state.time_limit_seconds,
                                 index=question_index,
@@ -594,15 +612,19 @@ async def websocket_event(websocket: WebSocket, event_id: str):
                     submitted_at=submission_time,
                 )
                 if success:
-                    async for db in get_db():
-                        await _score_answer_submission(
-                            db,
-                            session=session,
-                            participant_id=user_id,
-                            selected_answer=message.selected_answer,
-                            submitted_at=submission_time,
-                        )
-                        break
+                    async with async_session_maker() as db:
+                        try:
+                            await _score_answer_submission(
+                                db,
+                                session=session,
+                                participant_id=user_id,
+                                selected_answer=message.selected_answer,
+                                submitted_at=submission_time,
+                            )
+                            await db.commit()
+                        except Exception:
+                            await db.rollback()
+                            raise
 
                     await hub.broadcast(
                         event_uuid,
@@ -626,328 +648,520 @@ async def websocket_event(websocket: WebSocket, event_id: str):
 
             elif msg_type == "start_mega_quiz":
                 # Aggregate questions from all segments
-                async for db in get_db():
-                    question_count = message.question_count or 10
-                    questions = await aggregate_event_questions(db, event_uuid, question_count)
+                async with async_session_maker() as db:
+                    try:
+                        question_count = message.question_count or 10
+                        questions = await aggregate_event_questions(db, event_uuid, question_count)
 
-                    if not questions:
-                        await websocket.send_json(
-                            ErrorMessage(message="No questions available for mega quiz").model_dump()
+                        if not questions:
+                            await websocket.send_json(
+                                ErrorMessage(message="No questions available for mega quiz").model_dump()
+                            )
+                            continue
+
+                        # Broadcast mega quiz started
+                        await hub.broadcast(
+                            event_uuid,
+                            MegaQuizStartedMessage(
+                                event_id=event_uuid,
+                                question_count=len(questions)
+                            ).model_dump(),
                         )
-                        continue
-
-                    # Broadcast mega quiz started
-                    await hub.broadcast(
-                        event_uuid,
-                        MegaQuizStartedMessage(
-                            event_id=event_uuid,
-                            question_count=len(questions)
-                        ).model_dump(),
-                    )
-                    break
+                    except Exception:
+                        await db.rollback()
+                        raise
 
             elif msg_type == "admin_select_presenter" and user_id:
                 # Host override to assign presenter for a specific segment
-                async for db in get_db():
-                    from sqlalchemy import select, update
-                    from app.models import Event, Segment, EventParticipant, User
+                async with async_session_maker() as db:
+                    try:
+                        from sqlalchemy import select, update
+                        from app.models import Event, Segment, EventParticipant, User
 
-                    message = AdminSelectPresenterMessage.model_validate(data)
+                        message = AdminSelectPresenterMessage.model_validate(data)
 
-                    # Verify host
-                    event_result = await db.execute(select(Event).where(Event.id == event_uuid))
-                    event = event_result.scalar_one_or_none()
-                    if not event:
-                        await websocket.send_json(
-                            ErrorMessage(message="Event not found").model_dump()
+                        # Verify host
+                        event_result = await db.execute(select(Event).where(Event.id == event_uuid))
+                        event = event_result.scalar_one_or_none()
+                        if not event:
+                            await websocket.send_json(
+                                ErrorMessage(message="Event not found").model_dump()
+                            )
+                            continue
+                        if event.host_id != user_id:
+                            await websocket.send_json(
+                                ErrorMessage(message="Only the host can assign presenter").model_dump()
+                            )
+                            continue
+
+                        # Validate segment belongs to event
+                        segment_result = await db.execute(
+                            select(Segment).where(Segment.id == message.segment_id, Segment.event_id == event_uuid)
                         )
-                        break
-                    if event.host_id != user_id:
-                        await websocket.send_json(
-                            ErrorMessage(message="Only the host can assign presenter").model_dump()
+                        segment = segment_result.scalar_one_or_none()
+                        if not segment:
+                            await websocket.send_json(
+                                ErrorMessage(message="Segment not found").model_dump()
+                            )
+                            continue
+
+                        # Lookup presenter display name (participant or user)
+                        participant_result = await db.execute(
+                            select(EventParticipant).where(
+                                EventParticipant.event_id == event_uuid,
+                                EventParticipant.user_id == message.presenter_user_id,
+                            )
                         )
-                        break
+                        next_participant = participant_result.scalar_one_or_none()
 
-                    # Validate segment belongs to event
-                    segment_result = await db.execute(
-                        select(Segment).where(Segment.id == message.segment_id, Segment.event_id == event_uuid)
-                    )
-                    segment = segment_result.scalar_one_or_none()
-                    if not segment:
-                        await websocket.send_json(
-                            ErrorMessage(message="Segment not found").model_dump()
+                        user_result = await db.execute(select(User).where(User.id == message.presenter_user_id))
+                        user_row = user_result.scalar_one_or_none()
+
+                        new_presenter_name = (
+                            next_participant.display_name
+                            if next_participant
+                            else (user_row.username if user_row else "Presenter")
                         )
-                        break
 
-                    # Lookup presenter display name (participant or user)
-                    participant_result = await db.execute(
-                        select(EventParticipant).where(
-                            EventParticipant.event_id == event_uuid,
-                            EventParticipant.user_id == message.presenter_user_id,
+                        # Update segment presenter
+                        await db.execute(
+                            update(Segment)
+                            .where(Segment.id == message.segment_id)
+                            .values(presenter_user_id=message.presenter_user_id)
                         )
-                    )
-                    next_participant = participant_result.scalar_one_or_none()
+                        await db.commit()
 
-                    user_result = await db.execute(select(User).where(User.id == message.presenter_user_id))
-                    user_row = user_result.scalar_one_or_none()
+                        # Update GameState cache
+                        session = await hub.get_or_create_session(event_uuid)
+                        previous_presenter_id = session.game_state.current_presenter_id
+                        session.game_state.current_segment_id = message.segment_id
+                        session.game_state.current_presenter_id = message.presenter_user_id
 
-                    new_presenter_name = (
-                        next_participant.display_name
-                        if next_participant
-                        else (user_row.username if user_row else "Presenter")
-                    )
+                        await hub.broadcast(
+                            event_uuid,
+                            PresenterChangedMessage(
+                                previous_presenter_id=previous_presenter_id or user_id,
+                                new_presenter_id=message.presenter_user_id,
+                                new_presenter_name=new_presenter_name,
+                                segment_id=message.segment_id,
+                            ).model_dump(),
+                        )
+                    except Exception:
+                        await db.rollback()
+                        raise
 
-                    # Update segment presenter
-                    await db.execute(
-                        update(Segment)
-                        .where(Segment.id == message.segment_id)
-                        .values(presenter_user_id=message.presenter_user_id)
-                    )
-                    await db.commit()
+            elif msg_type == "select_presenter" and user_id:
+                # Host or current presenter selects next presenter (before segment starts)
+                async with async_session_maker() as db:
+                    try:
+                        from sqlalchemy import select
+                        from app.models import Event, EventParticipant, User
 
-                    # Update GameState cache
-                    session = await hub.get_or_create_session(event_uuid)
-                    previous_presenter_id = session.game_state.current_presenter_id
-                    session.game_state.current_segment_id = message.segment_id
-                    session.game_state.current_presenter_id = message.presenter_user_id
+                        message = SelectPresenterMessage.model_validate(data)
+                        next_presenter_id = message.presenter_user_id
 
-                    await hub.broadcast(
-                        event_uuid,
-                        PresenterChangedMessage(
-                            previous_presenter_id=previous_presenter_id or user_id,
-                            new_presenter_id=message.presenter_user_id,
-                            new_presenter_name=new_presenter_name,
-                            segment_id=message.segment_id,
-                        ).model_dump(),
-                    )
-                    break
+                        # Verify the user is host
+                        event_result = await db.execute(select(Event).where(Event.id == event_uuid))
+                        event = event_result.scalar_one_or_none()
+                        if not event:
+                            await websocket.send_json(
+                                ErrorMessage(message="Event not found").model_dump()
+                            )
+                            continue
+
+                        session = await hub.get_or_create_session(event_uuid)
+                        current_presenter_id = session.game_state.current_presenter_id
+
+                        # Must be host or current presenter to select next presenter
+                        is_host = event.host_id == user_id
+                        is_current_presenter = current_presenter_id is not None and current_presenter_id == user_id
+
+                        if not (is_host or is_current_presenter):
+                            await websocket.send_json(
+                                ErrorMessage(message="Only the host or current presenter can select a presenter").model_dump()
+                            )
+                            continue
+
+                        # Cannot select yourself as next presenter (unless you're the host selecting yourself for first presenter)
+                        if next_presenter_id == user_id and is_current_presenter and not is_host:
+                            await websocket.send_json(
+                                ErrorMessage(message="You cannot select yourself as the next presenter").model_dump()
+                            )
+                            continue
+
+                        # Verify selected user is a participant and online
+                        participant_result = await db.execute(
+                            select(EventParticipant).where(
+                                EventParticipant.event_id == event_uuid,
+                                EventParticipant.user_id == next_presenter_id,
+                            )
+                        )
+                        next_participant = participant_result.scalar_one_or_none()
+
+                        if not next_participant:
+                            # Check if it's the host's user record
+                            user_result = await db.execute(select(User).where(User.id == next_presenter_id))
+                            user_row = user_result.scalar_one_or_none()
+                            if not user_row:
+                                await websocket.send_json(
+                                    ErrorMessage(message="Selected user not found").model_dump()
+                                )
+                                continue
+                            next_presenter_name = user_row.username
+                        else:
+                            next_presenter_name = next_participant.display_name
+
+                        # Check if selected presenter is online (in connections)
+                        if next_presenter_id not in session.connections:
+                            await websocket.send_json(
+                                ErrorMessage(
+                                    message=f"Cannot select {next_presenter_name}. They are not currently connected. Please select someone who is online."
+                                ).model_dump()
+                            )
+                            continue
+
+                        # Determine if this is the first presenter
+                        is_first_presenter = session.game_state.current_segment_id is None and session.game_state.pending_presenter_id is None
+
+                        # Store pending presenter in game state
+                        session.game_state.pending_presenter_id = next_presenter_id
+                        session.game_state.pending_presenter_name = next_presenter_name
+
+                        # Broadcast presenter selected message
+                        await hub.broadcast(
+                            event_uuid,
+                            PresenterSelectedMessage(
+                                presenter_id=next_presenter_id,
+                                presenter_name=next_presenter_name,
+                                is_first_presenter=is_first_presenter,
+                            ).model_dump(),
+                        )
+                    except Exception:
+                        await db.rollback()
+                        raise
+
+            elif msg_type == "start_presentation" and user_id:
+                # Presenter starts their presentation - creates segment and starts recording
+                async with async_session_maker() as db:
+                    try:
+                        from sqlalchemy import select, func
+                        from app.models import Event, Segment, EventParticipant
+                        from uuid import uuid4
+
+                        message = StartPresentationMessage.model_validate(data)
+
+                        session = await hub.get_or_create_session(event_uuid)
+
+                        # Verify user is the pending presenter
+                        if session.game_state.pending_presenter_id != user_id:
+                            await websocket.send_json(
+                                ErrorMessage(message="You are not the selected presenter").model_dump()
+                            )
+                            continue
+
+                        # Get event for settings
+                        event_result = await db.execute(select(Event).where(Event.id == event_uuid))
+                        event = event_result.scalar_one_or_none()
+                        if not event:
+                            await websocket.send_json(
+                                ErrorMessage(message="Event not found").model_dump()
+                            )
+                            continue
+
+                        # Get presenter name
+                        presenter_name = session.game_state.pending_presenter_name or "Presenter"
+
+                        # Get next order index
+                        result = await db.execute(
+                            select(func.coalesce(func.max(Segment.order_index), -1) + 1)
+                            .where(Segment.event_id == event_uuid)
+                        )
+                        next_index = result.scalar() or 0
+
+                        # Create new segment
+                        segment = Segment(
+                            id=uuid4(),
+                            event_id=event_uuid,
+                            presenter_name=presenter_name,
+                            presenter_user_id=user_id,
+                            title=message.title or f"Segment {next_index + 1}",
+                            order_index=next_index,
+                            status=SegmentStatus.RECORDING.value,
+                            recording_started_at=datetime.now(timezone.utc),
+                        )
+                        db.add(segment)
+                        await db.flush()
+                        await db.commit()
+                        await db.refresh(segment)
+
+                        # Update game state
+                        session.game_state.current_segment_id = segment.id
+                        session.game_state.current_presenter_id = user_id
+                        session.game_state.pending_presenter_id = None
+                        session.game_state.pending_presenter_name = None
+                        session.game_state.quiz_phase = QuizPhase.NOT_STARTED
+
+                        # Broadcast presentation started
+                        await hub.broadcast(
+                            event_uuid,
+                            PresentationStartedMessage(
+                                segment_id=segment.id,
+                                presenter_id=user_id,
+                                presenter_name=presenter_name,
+                            ).model_dump(),
+                        )
+                    except Exception:
+                        await db.rollback()
+                        raise
 
             elif msg_type == "pass_presenter" and user_id:
                 # Handle presenter handoff
-                async for db in get_db():
-                    from sqlalchemy import select, update
-                    from app.models import Event, Segment, EventParticipant
+                async with async_session_maker() as db:
+                    try:
+                        from sqlalchemy import select, update
+                        from app.models import Event, Segment, EventParticipant
 
-                    next_presenter_id = message.next_presenter_user_id
+                        next_presenter_id = message.next_presenter_user_id
 
-                    # Get current segment
-                    session = await hub.get_or_create_session(event_uuid)
-                    current_segment_id = session.game_state.current_segment_id
+                        # Cannot pass presenter to yourself
+                        if next_presenter_id == user_id:
+                            await websocket.send_json(
+                                ErrorMessage(message="You cannot pass presenter to yourself").model_dump()
+                            )
+                            continue
 
-                    if not current_segment_id:
-                        await websocket.send_json(
-                            ErrorMessage(message="No active segment to pass presenter").model_dump()
+                        # Get current segment
+                        session = await hub.get_or_create_session(event_uuid)
+                        current_segment_id = session.game_state.current_segment_id
+
+                        if not current_segment_id:
+                            await websocket.send_json(
+                                ErrorMessage(message="No active segment to pass presenter").model_dump()
+                            )
+                            continue
+
+                        # Verify authorization (must be host or current presenter)
+                        event_result = await db.execute(
+                            select(Event).where(Event.id == event_uuid)
                         )
-                        break
+                        event = event_result.scalar_one_or_none()
 
-                    # Verify authorization (must be host or current presenter)
-                    event_result = await db.execute(
-                        select(Event).where(Event.id == event_uuid)
-                    )
-                    event = event_result.scalar_one_or_none()
-
-                    segment_result = await db.execute(
-                        select(Segment).where(Segment.id == current_segment_id)
-                    )
-                    segment = segment_result.scalar_one_or_none()
-
-                    if not event or not segment:
-                        await websocket.send_json(
-                            ErrorMessage(message="Event or segment not found").model_dump()
+                        segment_result = await db.execute(
+                            select(Segment).where(Segment.id == current_segment_id)
                         )
-                        break
+                        segment = segment_result.scalar_one_or_none()
 
-                    is_host = event.host_id == user_id
-                    is_current_presenter = segment.presenter_user_id == user_id
+                        if not event or not segment:
+                            await websocket.send_json(
+                                ErrorMessage(message="Event or segment not found").model_dump()
+                            )
+                            continue
 
-                    if not (is_host or is_current_presenter):
-                        await websocket.send_json(
-                            ErrorMessage(message="Only host or current presenter can pass presenter role").model_dump()
+                        is_host = event.host_id == user_id
+                        is_current_presenter = segment.presenter_user_id == user_id
+
+                        if not (is_host or is_current_presenter):
+                            await websocket.send_json(
+                                ErrorMessage(message="Only host or current presenter can pass presenter role").model_dump()
+                            )
+                            continue
+
+                        # Get next presenter info
+                        participant_result = await db.execute(
+                            select(EventParticipant).where(
+                                EventParticipant.event_id == event_uuid,
+                                EventParticipant.user_id == next_presenter_id,
+                            )
                         )
-                        break
+                        next_participant = participant_result.scalar_one_or_none()
 
-                    # Get next presenter info
-                    participant_result = await db.execute(
-                        select(EventParticipant).where(
-                            EventParticipant.event_id == event_uuid,
-                            EventParticipant.user_id == next_presenter_id,
+                        if not next_participant:
+                            await websocket.send_json(
+                                ErrorMessage(message="Next presenter not found in event").model_dump()
+                            )
+                            continue
+
+                        # Check if next presenter is currently connected
+                        if next_presenter_id not in session.connections:
+                            await websocket.send_json(
+                                ErrorMessage(
+                                    message=f"Cannot pass presenter to {next_participant.display_name}. They are not currently connected to the event. Please select someone who is online."
+                                ).model_dump()
+                            )
+                            continue
+
+                        # Update segment presenter
+                        await db.execute(
+                            update(Segment)
+                            .where(Segment.id == current_segment_id)
+                            .values(presenter_user_id=next_presenter_id)
                         )
-                    )
-                    next_participant = participant_result.scalar_one_or_none()
+                        await db.commit()
 
-                    if not next_participant:
-                        await websocket.send_json(
-                            ErrorMessage(message="Next presenter not found in event").model_dump()
-                        )
-                        break
+                        # Update GameState cache
+                        session.game_state.current_presenter_id = next_presenter_id
+                        session.game_state.current_segment_id = current_segment_id
 
-                    # Check if next presenter is currently connected
-                    if next_presenter_id not in session.connections:
-                        await websocket.send_json(
-                            ErrorMessage(
-                                message=f"Cannot pass presenter to {next_participant.display_name}. They are not currently connected to the event. Please select someone who is online."
+                        # Broadcast presenter change
+                        await hub.broadcast(
+                            event_uuid,
+                            PresenterChangedMessage(
+                                previous_presenter_id=user_id,
+                                new_presenter_id=next_presenter_id,
+                                new_presenter_name=next_participant.display_name,
+                                segment_id=current_segment_id
                             ).model_dump()
                         )
-                        break
-
-                    # Update segment presenter
-                    await db.execute(
-                        update(Segment)
-                        .where(Segment.id == current_segment_id)
-                        .values(presenter_user_id=next_presenter_id)
-                    )
-                    await db.commit()
-
-                    # Update GameState cache
-                    session.game_state.current_presenter_id = next_presenter_id
-                    session.game_state.current_segment_id = current_segment_id
-
-                    # Broadcast presenter change
-                    await hub.broadcast(
-                        event_uuid,
-                        PresenterChangedMessage(
-                            previous_presenter_id=user_id,
-                            new_presenter_id=next_presenter_id,
-                            new_presenter_name=next_participant.display_name,
-                            segment_id=current_segment_id
-                        ).model_dump()
-                    )
-                    break
+                    except Exception:
+                        await db.rollback()
+                        raise
 
             elif msg_type == "skip_mega_quiz":
-                async for db in get_db():
-                    session = await hub.get_or_create_session(event_uuid)
-                    final_lb = await _get_event_leaderboard(db, event_uuid, session)
-                    segment_winners = await _get_segment_winners(db, event_uuid)
-                    winner = final_lb[0] if final_lb else None
+                async with async_session_maker() as db:
+                    try:
+                        session = await hub.get_or_create_session(event_uuid)
+                        final_lb = await _get_event_leaderboard(db, event_uuid, session)
+                        segment_winners = await _get_segment_winners(db, event_uuid)
+                        winner = final_lb[0] if final_lb else None
 
-                    event_complete = EventCompleteMessage(
-                        event_id=event_uuid,
-                        final_leaderboard=final_lb,
-                        winner=winner,
-                        segment_winners=segment_winners,
-                    )
-                    session.game_state.quiz_phase = QuizPhase.EVENT_COMPLETE
-                    session.game_state.presenter_paused = False
-                    session.game_state.presenter_pause_reason = None
-
-                    await hub.broadcast(event_uuid, event_complete.model_dump())
-                    await hub.broadcast(
-                        event_uuid,
-                        PhaseChangedMessage(
-                            phase=QuizPhase.EVENT_COMPLETE,
-                            question_index=session.game_state.current_question_index,
-                            total_questions=session.game_state.total_questions,
-                        ).model_dump(),
-                    )
-                    break
-
-            elif msg_type == "start_game" and user_id:
-                async for db in get_db():
-                    segment = await _get_active_segment_with_event(db, event_uuid)
-                    if not segment:
-                        await websocket.send_json(
-                            ErrorMessage(message="No segment with questions available").model_dump()
+                        event_complete = EventCompleteMessage(
+                            event_id=event_uuid,
+                            final_leaderboard=final_lb,
+                            winner=winner,
+                            segment_winners=segment_winners,
                         )
-                        break
+                        session.game_state.quiz_phase = QuizPhase.EVENT_COMPLETE
+                        session.game_state.presenter_paused = False
+                        session.game_state.presenter_pause_reason = None
 
-                    if not _can_control_segment(segment.event, segment, user_id):
-                        await websocket.send_json(
-                            ErrorMessage(message="Only the host or presenter can start the quiz").model_dump()
-                        )
-                        break
-
-                    # Load questions for the segment
-                    q_result = await db.execute(
-                        select(Question).where(Question.segment_id == segment.id).order_by(Question.order_index)
-                    )
-                    questions = q_result.scalars().all()
-                    if not questions:
-                        await websocket.send_json(
-                            ErrorMessage(message="No questions found for this segment").model_dump()
-                        )
-                        break
-
-                    session = await hub.get_or_create_session(event_uuid)
-                    session.game_state.scored_question_ids.clear()
-                    session.game_state.current_segment_id = segment.id
-                    session.game_state.current_presenter_id = segment.presenter_user_id or user_id
-                    session.game_state.questions = [
-                        {"id": q.id, "text": q.question_text, "correct_answer": q.correct_answer} for q in questions
-                    ]
-                    session.game_state.total_questions = len(questions)
-                    session.game_state.current_question_index = 0
-                    session.game_state.current_question_id = questions[0].id
-                    session.game_state.presenter_paused = False
-                    session.game_state.presenter_pause_reason = None
-                    session.game_state.quiz_phase = QuizPhase.SHOWING_QUESTION
-                    session.game_state.time_limit_seconds = segment.event.time_per_question or session.game_state.time_limit_seconds
-                    await hub.clear_answers(event_uuid)
-
-                    # Pause if no connected participants (excluding current presenter)
-                    presenter_id = session.game_state.current_presenter_id
-                    connected_non_presenters = [
-                        p for p in session.game_state.participants.values()
-                        if p.user_id != presenter_id and p.online is not False
-                    ]
-                    no_connected_participants = len(connected_non_presenters) == 0
-
-                    if no_connected_participants:
-                        session.game_state.presenter_paused = True
-                        session.game_state.presenter_pause_reason = "no_participants"
-                        session.game_state.quiz_phase = QuizPhase.PRESENTER_PAUSED
-                        session.game_state.question_started_at = None
-                    else:
-                        session.game_state.question_started_at = datetime.now(timezone.utc)
-
-                    # Update segment status to reflect quiz in progress
-                    segment.status = SegmentStatus.QUIZZING.value
-                    segment.quiz_started_at = datetime.now(timezone.utc)
-                    await db.flush()
-
-                    time_limit = session.game_state.time_limit_seconds
-                    await hub.broadcast(event_uuid, GameStartedMessage().model_dump())
-                    if session.game_state.presenter_paused:
+                        await hub.broadcast(event_uuid, event_complete.model_dump())
                         await hub.broadcast(
                             event_uuid,
-                            PresenterPausedMessage(
-                                presenter_id=session.game_state.current_presenter_id or user_id,
-                                presenter_name=segment.presenter_name or "Presenter",
-                                segment_id=segment.id,
+                            PhaseChangedMessage(
+                                phase=QuizPhase.EVENT_COMPLETE,
                                 question_index=session.game_state.current_question_index,
                                 total_questions=session.game_state.total_questions,
-                                reason="no_participants",
                             ).model_dump(),
                         )
-                        await hub.broadcast(
-                            event_uuid,
-                            PhaseChangedMessage(
-                                phase=QuizPhase.PRESENTER_PAUSED,
-                                question_index=0,
-                                total_questions=len(questions),
-                            ).model_dump(),
+                    except Exception:
+                        await db.rollback()
+                        raise
+
+            elif msg_type == "start_game" and user_id:
+                async with async_session_maker() as db:
+                    try:
+                        segment = await _get_active_segment_with_event(db, event_uuid)
+                        if not segment:
+                            await websocket.send_json(
+                                ErrorMessage(message="No segment with questions available").model_dump()
+                            )
+                            continue
+
+                        if not _can_control_segment(segment.event, segment, user_id):
+                            await websocket.send_json(
+                                ErrorMessage(message="Only the host or presenter can start the quiz").model_dump()
+                            )
+                            continue
+
+                        # Load questions for the segment
+                        q_result = await db.execute(
+                            select(Question).where(Question.segment_id == segment.id).order_by(Question.order_index)
                         )
-                    else:
-                        await hub.broadcast(
-                            event_uuid,
-                            PhaseChangedMessage(
-                                phase=QuizPhase.SHOWING_QUESTION,
-                                question_index=0,
-                                total_questions=len(questions),
-                            ).model_dump(),
-                        )
-                        await hub.broadcast(
-                            event_uuid,
-                            _build_question_payload(
-                                question_id=questions[0].id,
-                                question_text=questions[0].question_text,
-                                correct_answer=questions[0].correct_answer,
-                                total_questions=len(questions),
-                                time_limit=time_limit,
-                                index=0,
-                            ).model_dump(),
-                        )
-                    break
+                        questions = q_result.scalars().all()
+                        if not questions:
+                            await websocket.send_json(
+                                ErrorMessage(message="No questions found for this segment").model_dump()
+                            )
+                            continue
+
+                        session = await hub.get_or_create_session(event_uuid)
+                        session.game_state.scored_question_ids.clear()
+                        session.game_state.current_segment_id = segment.id
+                        session.game_state.current_presenter_id = segment.presenter_user_id or user_id
+                        session.game_state.questions = [
+                            {
+                                "id": q.id, 
+                                "text": q.question_text, 
+                                "correct_answer": q.correct_answer,
+                                "fake_answers": q.fake_answers or []
+                            } for q in questions
+                        ]
+                        session.game_state.total_questions = len(questions)
+                        session.game_state.current_question_index = 0
+                        session.game_state.current_question_id = questions[0].id
+                        session.game_state.presenter_paused = False
+                        session.game_state.presenter_pause_reason = None
+                        session.game_state.quiz_phase = QuizPhase.SHOWING_QUESTION
+                        session.game_state.time_limit_seconds = segment.event.time_per_question or session.game_state.time_limit_seconds
+                        await hub.clear_answers(event_uuid)
+
+                        # Pause if no connected participants (excluding current presenter)
+                        presenter_id = session.game_state.current_presenter_id
+                        connected_non_presenters = [
+                            p for p in session.game_state.participants.values()
+                            if p.user_id != presenter_id and p.online is not False
+                        ]
+                        no_connected_participants = len(connected_non_presenters) == 0
+
+                        if no_connected_participants:
+                            session.game_state.presenter_paused = True
+                            session.game_state.presenter_pause_reason = "no_participants"
+                            session.game_state.quiz_phase = QuizPhase.PRESENTER_PAUSED
+                            session.game_state.question_started_at = None
+                        else:
+                            session.game_state.question_started_at = datetime.now(timezone.utc)
+
+                        # Update segment status to reflect quiz in progress
+                        segment.status = SegmentStatus.QUIZZING.value
+                        segment.quiz_started_at = datetime.now(timezone.utc)
+                        await db.commit()
+
+                        time_limit = session.game_state.time_limit_seconds
+                        await hub.broadcast(event_uuid, GameStartedMessage().model_dump())
+                        if session.game_state.presenter_paused:
+                            await hub.broadcast(
+                                event_uuid,
+                                PresenterPausedMessage(
+                                    presenter_id=session.game_state.current_presenter_id or user_id,
+                                    presenter_name=segment.presenter_name or "Presenter",
+                                    segment_id=segment.id,
+                                    question_index=session.game_state.current_question_index,
+                                    total_questions=session.game_state.total_questions,
+                                    reason="no_participants",
+                                ).model_dump(),
+                            )
+                            await hub.broadcast(
+                                event_uuid,
+                                PhaseChangedMessage(
+                                    phase=QuizPhase.PRESENTER_PAUSED,
+                                    question_index=0,
+                                    total_questions=len(questions),
+                                ).model_dump(),
+                            )
+                        else:
+                            await hub.broadcast(
+                                event_uuid,
+                                PhaseChangedMessage(
+                                    phase=QuizPhase.SHOWING_QUESTION,
+                                    question_index=0,
+                                    total_questions=len(questions),
+                                ).model_dump(),
+                            )
+                            await hub.broadcast(
+                                event_uuid,
+                                _build_question_payload(
+                                    question_id=questions[0].id,
+                                    question_text=questions[0].question_text,
+                                    correct_answer=questions[0].correct_answer,
+                                    fake_answers=questions[0].fake_answers or [],
+                                    total_questions=len(questions),
+                                    time_limit=time_limit,
+                                    index=0,
+                                ).model_dump(),
+                            )
+                    except Exception:
+                        await db.rollback()
+                        raise
 
             elif msg_type == "next_question" and user_id:
                 session = await hub.get_or_create_session(event_uuid)
@@ -959,104 +1173,108 @@ async def websocket_event(websocket: WebSocket, event_id: str):
                     continue
 
                 # Authorization check: host or presenter
-                async for db in get_db():
-                    event_row = await db.get(Event, event_uuid)
-                    segment_id = session.game_state.current_segment_id
-                    segment_row = await db.get(Segment, segment_id) if segment_id else None
-                    if not event_row or not segment_row or not _can_control_segment(event_row, segment_row, user_id):
-                        await websocket.send_json(
-                            ErrorMessage(message="Only the host or presenter can change questions").model_dump()
-                        )
-                        break
+                async with async_session_maker() as db:
+                    try:
+                        event_row = await db.get(Event, event_uuid)
+                        segment_id = session.game_state.current_segment_id
+                        segment_row = await db.get(Segment, segment_id) if segment_id else None
+                        if not event_row or not segment_row or not _can_control_segment(event_row, segment_row, user_id):
+                            await websocket.send_json(
+                                ErrorMessage(message="Only the host or presenter can change questions").model_dump()
+                            )
+                            continue
 
-                    await _apply_zero_scores_for_unanswered(db, session)
+                        await _apply_zero_scores_for_unanswered(db, session)
 
-                    next_index = session.game_state.current_question_index + 1
-                    questions = session.game_state.questions
-                    if next_index >= len(questions):
-                        session.game_state.quiz_phase = QuizPhase.SEGMENT_COMPLETE
-                        await hub.broadcast(event_uuid, GameEndedMessage().model_dump())
+                        next_index = session.game_state.current_question_index + 1
+                        questions = session.game_state.questions
+                        if next_index >= len(questions):
+                            session.game_state.quiz_phase = QuizPhase.SEGMENT_COMPLETE
+                            await hub.broadcast(event_uuid, GameEndedMessage().model_dump())
+                            await hub.broadcast(
+                                event_uuid,
+                                PhaseChangedMessage(
+                                    phase=QuizPhase.SEGMENT_COMPLETE,
+                                    question_index=session.game_state.current_question_index,
+                                    total_questions=len(questions),
+                                ).model_dump(),
+                            )
+
+                            # Mark segment complete and broadcast results
+                            if segment_id:
+                                segment_row = await db.get(Segment, segment_id)
+                                if segment_row:
+                                    segment_row.status = SegmentStatus.COMPLETED.value
+                                    segment_row.ended_at = datetime.now(timezone.utc)
+                                    await db.commit()
+
+                                    segment_lb = await _get_segment_leaderboard(db, segment_id)
+                                    event_lb = await _get_event_leaderboard(db, event_uuid, session)
+                                    await hub.broadcast(
+                                        event_uuid,
+                                        SegmentCompleteMessage(
+                                            segment_id=segment_id,
+                                            segment_title=segment_row.title or "Segment",
+                                            presenter_name=segment_row.presenter_name,
+                                            segment_leaderboard=segment_lb,
+                                            event_leaderboard=event_lb,
+                                            segment_winner=segment_lb[0] if segment_lb else None,
+                                            event_leader=event_lb[0] if event_lb else None,
+                                        ).model_dump(),
+                                    )
+
+                                    # If all segments complete, broadcast final event leaderboard
+                                    completion = await _maybe_emit_completion_payload(db, event_uuid)
+                                    if completion:
+                                        session.game_state.quiz_phase = (
+                                            QuizPhase.MEGA_QUIZ_READY
+                                            if isinstance(completion, MegaQuizReadyMessage)
+                                            else QuizPhase.EVENT_COMPLETE
+                                        )
+
+                                        await hub.broadcast(event_uuid, completion.model_dump())
+                                        await hub.broadcast(
+                                            event_uuid,
+                                            PhaseChangedMessage(
+                                                phase=session.game_state.quiz_phase,
+                                                question_index=session.game_state.current_question_index,
+                                                total_questions=session.game_state.total_questions,
+                                            ).model_dump(),
+                                        )
+                            continue
+
+                        session.game_state.current_question_index = next_index
+                        session.game_state.current_question_id = questions[next_index]["id"]
+                        session.game_state.presenter_paused = False
+                        session.game_state.quiz_phase = QuizPhase.SHOWING_QUESTION
+                        session.game_state.question_started_at = datetime.now(timezone.utc)
+                        await hub.clear_answers(event_uuid)
+
+                        time_limit = session.game_state.time_limit_seconds
                         await hub.broadcast(
                             event_uuid,
                             PhaseChangedMessage(
-                                phase=QuizPhase.SEGMENT_COMPLETE,
-                                question_index=session.game_state.current_question_index,
+                                phase=QuizPhase.SHOWING_QUESTION,
+                                question_index=next_index,
                                 total_questions=len(questions),
                             ).model_dump(),
                         )
 
-                        # Mark segment complete and broadcast results
-                        if segment_id:
-                            segment_row = await db.get(Segment, segment_id)
-                            if segment_row:
-                                segment_row.status = SegmentStatus.COMPLETED.value
-                                segment_row.ended_at = datetime.now(timezone.utc)
-                                await db.commit()
-
-                                segment_lb = await _get_segment_leaderboard(db, segment_id)
-                                event_lb = await _get_event_leaderboard(db, event_uuid, session)
-                                await hub.broadcast(
-                                    event_uuid,
-                                    SegmentCompleteMessage(
-                                        segment_id=segment_id,
-                                        segment_title=segment_row.title or "Segment",
-                                        presenter_name=segment_row.presenter_name,
-                                        segment_leaderboard=segment_lb,
-                                        event_leaderboard=event_lb,
-                                        segment_winner=segment_lb[0] if segment_lb else None,
-                                        event_leader=event_lb[0] if event_lb else None,
-                                    ).model_dump(),
-                                )
-
-                                # If all segments complete, broadcast final event leaderboard
-                                completion = await _maybe_emit_completion_payload(db, event_uuid)
-                                if completion:
-                                    session.game_state.quiz_phase = (
-                                        QuizPhase.MEGA_QUIZ_READY
-                                        if isinstance(completion, MegaQuizReadyMessage)
-                                        else QuizPhase.EVENT_COMPLETE
-                                    )
-
-                                    await hub.broadcast(event_uuid, completion.model_dump())
-                                    await hub.broadcast(
-                                        event_uuid,
-                                        PhaseChangedMessage(
-                                            phase=session.game_state.quiz_phase,
-                                            question_index=session.game_state.current_question_index,
-                                            total_questions=session.game_state.total_questions,
-                                        ).model_dump(),
-                                    )
-                        break
-
-                    session.game_state.current_question_index = next_index
-                    session.game_state.current_question_id = questions[next_index]["id"]
-                    session.game_state.presenter_paused = False
-                    session.game_state.quiz_phase = QuizPhase.SHOWING_QUESTION
-                    session.game_state.question_started_at = datetime.now(timezone.utc)
-                    await hub.clear_answers(event_uuid)
-
-                    time_limit = session.game_state.time_limit_seconds
-                    await hub.broadcast(
-                        event_uuid,
-                        PhaseChangedMessage(
-                            phase=QuizPhase.SHOWING_QUESTION,
-                            question_index=next_index,
-                            total_questions=len(questions),
-                        ).model_dump(),
-                    )
-
-                    await hub.broadcast(
-                        event_uuid,
-                        _build_question_payload(
-                            question_id=questions[next_index]["id"],
-                            question_text=questions[next_index]["text"],
-                            correct_answer=questions[next_index]["correct_answer"],
-                            total_questions=len(questions),
-                            time_limit=time_limit,
-                            index=next_index,
-                        ).model_dump(),
-                    )
-                    break
+                        await hub.broadcast(
+                            event_uuid,
+                            _build_question_payload(
+                                question_id=questions[next_index]["id"],
+                                question_text=questions[next_index]["text"],
+                                correct_answer=questions[next_index]["correct_answer"],
+                                fake_answers=questions[next_index].get("fake_answers", []),
+                                total_questions=len(questions),
+                                time_limit=time_limit,
+                                index=next_index,
+                            ).model_dump(),
+                        )
+                    except Exception:
+                        await db.rollback()
+                        raise
 
             elif msg_type == "reveal_answer" and user_id:
                 session = await hub.get_or_create_session(event_uuid)
@@ -1075,195 +1293,206 @@ async def websocket_event(websocket: WebSocket, event_id: str):
                 )
 
                 # Authorization check
-                async for db in get_db():
-                    event_row = await db.get(Event, event_uuid)
-                    segment_row = await db.get(Segment, session.game_state.current_segment_id)
-                    if not event_row or not segment_row or not _can_control_segment(event_row, segment_row, user_id):
-                        await websocket.send_json(
-                            ErrorMessage(message="Only the host or presenter can reveal answers").model_dump()
-                        )
-                        break
+                async with async_session_maker() as db:
+                    try:
+                        event_row = await db.get(Event, event_uuid)
+                        segment_row = await db.get(Segment, session.game_state.current_segment_id)
+                        if not event_row or not segment_row or not _can_control_segment(event_row, segment_row, user_id):
+                            await websocket.send_json(
+                                ErrorMessage(message="Only the host or presenter can reveal answers").model_dump()
+                            )
+                            continue
 
-                    session.game_state.quiz_phase = QuizPhase.REVEALING_ANSWER
-                    await _apply_zero_scores_for_unanswered(db, session)
-                    segment_lb = await _get_segment_leaderboard(db, segment_row.id) if segment_row else []
-                    event_lb = await _get_event_leaderboard(db, event_uuid, session)
+                        session.game_state.quiz_phase = QuizPhase.REVEALING_ANSWER
+                        await _apply_zero_scores_for_unanswered(db, session)
+                        segment_lb = await _get_segment_leaderboard(db, segment_row.id) if segment_row else []
+                        event_lb = await _get_event_leaderboard(db, event_uuid, session)
 
-                    reveal_message = _build_reveal_payload(
-                        question=question,
-                        question_index=current_index,
-                        answers=session.game_state.answers_received.values(),
-                    )
-                    reveal_message.segment_leaderboard = segment_lb
-                    reveal_message.event_leaderboard = event_lb
-
-                    await hub.broadcast(event_uuid, reveal_message.model_dump())
-                    await hub.broadcast(
-                        event_uuid,
-                        PhaseChangedMessage(
-                            phase=QuizPhase.REVEALING_ANSWER,
+                        reveal_message = _build_reveal_payload(
+                            question=question,
                             question_index=current_index,
-                            total_questions=session.game_state.total_questions,
-                        ).model_dump(),
-                    )
-                    break
-
-            elif msg_type == "show_leaderboard" and user_id:
-                session = await hub.get_or_create_session(event_uuid)
-                async for db in get_db():
-                    event_row = await db.get(Event, event_uuid)
-                    segment_row = await db.get(Segment, session.game_state.current_segment_id) if session.game_state.current_segment_id else None
-                    if not event_row or not segment_row or not _can_control_segment(event_row, segment_row, user_id):
-                        await websocket.send_json(
-                            ErrorMessage(message="Only the host or presenter can show leaderboard").model_dump()
+                            answers=session.game_state.answers_received.values(),
                         )
-                        break
+                        reveal_message.segment_leaderboard = segment_lb
+                        reveal_message.event_leaderboard = event_lb
 
-                    await hub.broadcast(
-                        event_uuid,
-                        LeaderboardMessage(rankings=[]).model_dump(),
-                    )
-                    break
-
-            elif msg_type == "end_game" and user_id:
-                session = await hub.get_or_create_session(event_uuid)
-                async for db in get_db():
-                    event_row = await db.get(Event, event_uuid)
-                    segment_row = await db.get(Segment, session.game_state.current_segment_id) if session.game_state.current_segment_id else None
-                    if not event_row or not segment_row or not _can_control_segment(event_row, segment_row, user_id):
-                        await websocket.send_json(
-                            ErrorMessage(message="Only the host or presenter can end the quiz").model_dump()
-                        )
-                        break
-
-                    await _apply_zero_scores_for_unanswered(db, session)
-
-                    session.game_state.quiz_phase = QuizPhase.SEGMENT_COMPLETE
-                    await hub.broadcast(event_uuid, GameEndedMessage().model_dump())
-                    await hub.broadcast(
-                        event_uuid,
-                        PhaseChangedMessage(
-                            phase=QuizPhase.SEGMENT_COMPLETE,
-                            question_index=session.game_state.current_question_index,
-                            total_questions=session.game_state.total_questions,
-                        ).model_dump(),
-                    )
-
-                    # Persist segment completion
-                    segment_row.status = SegmentStatus.COMPLETED.value
-                    segment_row.ended_at = datetime.now(timezone.utc)
-                    await db.commit()
-
-                    # Broadcast segment completion payload
-                    segment_lb = await _get_segment_leaderboard(db, segment_row.id)
-                    event_lb = await _get_event_leaderboard(db, event_uuid, session)
-                    await hub.broadcast(
-                        event_uuid,
-                        SegmentCompleteMessage(
-                            segment_id=segment_row.id,
-                            segment_title=segment_row.title or "Segment",
-                            presenter_name=segment_row.presenter_name,
-                            segment_leaderboard=segment_lb,
-                            event_leaderboard=event_lb,
-                            segment_winner=segment_lb[0] if segment_lb else None,
-                            event_leader=event_lb[0] if event_lb else None,
-                        ).model_dump(),
-                    )
-
-                    # If all segments are complete, emit final results
-                    completion = await _maybe_emit_completion_payload(db, event_uuid)
-                    if completion:
-                        session.game_state.quiz_phase = (
-                            QuizPhase.MEGA_QUIZ_READY
-                            if isinstance(completion, MegaQuizReadyMessage)
-                            else QuizPhase.EVENT_COMPLETE
-                        )
-                        await hub.broadcast(event_uuid, completion.model_dump())
+                        await hub.broadcast(event_uuid, reveal_message.model_dump())
                         await hub.broadcast(
                             event_uuid,
                             PhaseChangedMessage(
-                                phase=session.game_state.quiz_phase,
+                                phase=QuizPhase.REVEALING_ANSWER,
+                                question_index=current_index,
+                                total_questions=session.game_state.total_questions,
+                            ).model_dump(),
+                        )
+                    except Exception:
+                        await db.rollback()
+                        raise
+
+            elif msg_type == "show_leaderboard" and user_id:
+                session = await hub.get_or_create_session(event_uuid)
+                async with async_session_maker() as db:
+                    try:
+                        event_row = await db.get(Event, event_uuid)
+                        segment_row = await db.get(Segment, session.game_state.current_segment_id) if session.game_state.current_segment_id else None
+                        if not event_row or not segment_row or not _can_control_segment(event_row, segment_row, user_id):
+                            await websocket.send_json(
+                                ErrorMessage(message="Only the host or presenter can show leaderboard").model_dump()
+                            )
+                            continue
+
+                        await hub.broadcast(
+                            event_uuid,
+                            LeaderboardMessage(rankings=[]).model_dump(),
+                        )
+                    except Exception:
+                        await db.rollback()
+                        raise
+
+            elif msg_type == "end_game" and user_id:
+                session = await hub.get_or_create_session(event_uuid)
+                async with async_session_maker() as db:
+                    try:
+                        event_row = await db.get(Event, event_uuid)
+                        segment_row = await db.get(Segment, session.game_state.current_segment_id) if session.game_state.current_segment_id else None
+                        if not event_row or not segment_row or not _can_control_segment(event_row, segment_row, user_id):
+                            await websocket.send_json(
+                                ErrorMessage(message="Only the host or presenter can end the quiz").model_dump()
+                            )
+                            continue
+
+                        await _apply_zero_scores_for_unanswered(db, session)
+
+                        session.game_state.quiz_phase = QuizPhase.SEGMENT_COMPLETE
+                        await hub.broadcast(event_uuid, GameEndedMessage().model_dump())
+                        await hub.broadcast(
+                            event_uuid,
+                            PhaseChangedMessage(
+                                phase=QuizPhase.SEGMENT_COMPLETE,
                                 question_index=session.game_state.current_question_index,
                                 total_questions=session.game_state.total_questions,
                             ).model_dump(),
                         )
-                    break
+
+                        # Persist segment completion
+                        segment_row.status = SegmentStatus.COMPLETED.value
+                        segment_row.ended_at = datetime.now(timezone.utc)
+                        await db.commit()
+
+                        # Broadcast segment completion payload
+                        segment_lb = await _get_segment_leaderboard(db, segment_row.id)
+                        event_lb = await _get_event_leaderboard(db, event_uuid, session)
+                        await hub.broadcast(
+                            event_uuid,
+                            SegmentCompleteMessage(
+                                segment_id=segment_row.id,
+                                segment_title=segment_row.title or "Segment",
+                                presenter_name=segment_row.presenter_name,
+                                segment_leaderboard=segment_lb,
+                                event_leaderboard=event_lb,
+                                segment_winner=segment_lb[0] if segment_lb else None,
+                                event_leader=event_lb[0] if event_lb else None,
+                            ).model_dump(),
+                        )
+
+                        # If all segments are complete, emit final results
+                        completion = await _maybe_emit_completion_payload(db, event_uuid)
+                        if completion:
+                            session.game_state.quiz_phase = (
+                                QuizPhase.MEGA_QUIZ_READY
+                                if isinstance(completion, MegaQuizReadyMessage)
+                                else QuizPhase.EVENT_COMPLETE
+                            )
+                            await hub.broadcast(event_uuid, completion.model_dump())
+                            await hub.broadcast(
+                                event_uuid,
+                                PhaseChangedMessage(
+                                    phase=session.game_state.quiz_phase,
+                                    question_index=session.game_state.current_question_index,
+                                    total_questions=session.game_state.total_questions,
+                                ).model_dump(),
+                            )
+                    except Exception:
+                        await db.rollback()
+                        raise
 
     except WebSocketDisconnect:
         if user_id:
             # Check if disconnected user was the current presenter
-            async for db in get_db():
-                from sqlalchemy import select
-                from app.models import Event, Segment, EventParticipant
+            async with async_session_maker() as db:
+                try:
+                    from sqlalchemy import select
+                    from app.models import Event, Segment, EventParticipant
 
-                session = await hub.get_or_create_session(event_uuid)
-                current_presenter_id = session.game_state.current_presenter_id
-                current_segment_id = session.game_state.current_segment_id
+                    session = await hub.get_or_create_session(event_uuid)
+                    current_presenter_id = session.game_state.current_presenter_id
+                    current_segment_id = session.game_state.current_segment_id
 
-                if current_presenter_id == user_id and current_segment_id:
-                    # Get presenter name
-                    participant_result = await db.execute(
-                        select(EventParticipant).where(
-                            EventParticipant.event_id == event_uuid,
-                            EventParticipant.id == user_id
+                    if current_presenter_id == user_id and current_segment_id:
+                        # Get presenter name
+                        participant_result = await db.execute(
+                            select(EventParticipant).where(
+                                EventParticipant.event_id == event_uuid,
+                                EventParticipant.id == user_id
+                            )
                         )
-                    )
-                    participant = participant_result.scalar_one_or_none()
+                        participant = participant_result.scalar_one_or_none()
 
-                    if participant:
-                        session.game_state.presenter_paused = True
-                        session.game_state.presenter_pause_reason = "presenter_disconnected"
-                        session.game_state.quiz_phase = QuizPhase.PRESENTER_PAUSED
-                        session.game_state.question_started_at = None
+                        if participant:
+                            session.game_state.presenter_paused = True
+                            session.game_state.presenter_pause_reason = "presenter_disconnected"
+                            session.game_state.quiz_phase = QuizPhase.PRESENTER_PAUSED
+                            session.game_state.question_started_at = None
 
-                        await hub.broadcast(
-                            event_uuid,
-                            PresenterPausedMessage(
-                                presenter_id=user_id,
-                                presenter_name=participant.display_name,
-                                segment_id=current_segment_id,
-                                question_index=session.game_state.current_question_index,
-                                total_questions=session.game_state.total_questions,
-                                reason="presenter_disconnected",
-                            ).model_dump(),
-                        )
-
-                        await hub.broadcast(
-                            event_uuid,
-                            PhaseChangedMessage(
-                                phase=QuizPhase.PRESENTER_PAUSED,
-                                question_index=session.game_state.current_question_index,
-                                total_questions=session.game_state.total_questions,
-                            ).model_dump(),
-                        )
-
-                        # Get event to find host
-                        event_result = await db.execute(
-                            select(Event).where(Event.id == event_uuid)
-                        )
-                        event = event_result.scalar_one_or_none()
-
-                        if event and event.host_id:
-                            await hub.send_to_user(
+                            await hub.broadcast(
                                 event_uuid,
-                                event.host_id,
-                                PresenterOverrideNeededMessage(
+                                PresenterPausedMessage(
                                     presenter_id=user_id,
                                     presenter_name=participant.display_name,
                                     segment_id=current_segment_id,
+                                    question_index=session.game_state.current_question_index,
+                                    total_questions=session.game_state.total_questions,
+                                    reason="presenter_disconnected",
                                 ).model_dump(),
                             )
-                            # Send notification to host only
-                            await hub.send_to_user(
+
+                            await hub.broadcast(
                                 event_uuid,
-                                event.host_id,
-                                PresenterDisconnectedMessage(
-                                    presenter_id=user_id,
-                                    presenter_name=participant.display_name,
-                                    segment_id=current_segment_id
-                                ).model_dump()
+                                PhaseChangedMessage(
+                                    phase=QuizPhase.PRESENTER_PAUSED,
+                                    question_index=session.game_state.current_question_index,
+                                    total_questions=session.game_state.total_questions,
+                                ).model_dump(),
                             )
-                break
+
+                            # Get event to find host
+                            event_result = await db.execute(
+                                select(Event).where(Event.id == event_uuid)
+                            )
+                            event = event_result.scalar_one_or_none()
+
+                            if event and event.host_id:
+                                await hub.send_to_user(
+                                    event_uuid,
+                                    event.host_id,
+                                    PresenterOverrideNeededMessage(
+                                        presenter_id=user_id,
+                                        presenter_name=participant.display_name,
+                                        segment_id=current_segment_id,
+                                    ).model_dump(),
+                                )
+                                # Send notification to host only
+                                await hub.send_to_user(
+                                    event_uuid,
+                                    event.host_id,
+                                    PresenterDisconnectedMessage(
+                                        presenter_id=user_id,
+                                        presenter_name=participant.display_name,
+                                        segment_id=current_segment_id
+                                    ).model_dump()
+                                )
+                except Exception:
+                    pass  # Don't let exceptions during cleanup prevent disconnect
 
             await hub.disconnect(event_uuid, user_id)
             await hub.broadcast(

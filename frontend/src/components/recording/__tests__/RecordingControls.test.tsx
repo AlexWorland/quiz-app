@@ -1,6 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { RecordingControls } from '../RecordingControls';
+
+vi.mock('lucide-react', () => ({
+  Play: () => <div>Play Icon</div>,
+  Pause: () => <div>Pause Icon</div>,
+  Sparkles: () => <div>Sparkles Icon</div>,
+  RotateCcw: () => <div>Restart Icon</div>,
+}));
 
 describe('RecordingControls', () => {
   const defaultProps = {
@@ -32,10 +39,10 @@ describe('RecordingControls', () => {
     expect(onStart).toHaveBeenCalledTimes(1);
   });
 
-  it('should show pause and stop buttons when recording', () => {
+  it('should show pause and generate quiz buttons when recording', () => {
     render(<RecordingControls {...defaultProps} status="recording" />);
     expect(screen.getByRole('button', { name: /Pause/i })).toBeInTheDocument();
-    expect(screen.getByText('Stop & Start Quiz')).toBeInTheDocument();
+    expect(screen.getByText('Generate Quiz')).toBeInTheDocument();
   });
 
   it('should call onPause when pause button is clicked', () => {
@@ -49,12 +56,12 @@ describe('RecordingControls', () => {
     expect(onPause).toHaveBeenCalledTimes(1);
   });
 
-  it('should call onStop when stop button is clicked', () => {
+  it('should call onStop when generate quiz button is clicked', () => {
     const onStop = vi.fn();
     render(<RecordingControls {...defaultProps} status="recording" onStop={onStop} />);
     
     act(() => {
-      fireEvent.click(screen.getByText('Stop & Start Quiz'));
+      fireEvent.click(screen.getByText('Generate Quiz'));
     });
     
     expect(onStop).toHaveBeenCalledTimes(1);

@@ -111,7 +111,7 @@ const mockEvent = {
   host_id: 'user-1',
   title: 'Test Event',
   join_code: 'TEST01',
-  mode: 'normal' as const,
+  mode: 'listen_only' as const,
   status: 'active' as const,
   num_fake_answers: 3,
   time_per_question: 30,

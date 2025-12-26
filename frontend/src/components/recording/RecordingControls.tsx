@@ -1,4 +1,4 @@
-import { Play, Pause, Square, RotateCcw } from 'lucide-react'
+import { Play, Pause, Sparkles, RotateCcw } from 'lucide-react'
 import { Button } from '../common/Button'
 
 interface RecordingControlsProps {
@@ -66,8 +66,8 @@ export function RecordingControls({
           disabled={disabled}
           className="flex items-center gap-2"
         >
-          <Square className="w-4 h-4" />
-          Stop & Start Quiz
+          <Sparkles className="w-4 h-4" />
+          Generate Quiz
         </Button>
       )}
 

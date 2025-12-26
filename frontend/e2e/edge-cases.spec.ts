@@ -70,7 +70,7 @@ test.describe('Phase 5 Edge Cases', () => {
 
         event = await createEvent(page, {
           title: `Unique Name Test ${Date.now()}`,
-          mode: 'normal',
+          mode: 'listen_only',
         });
 
         // Get join code
@@ -177,7 +177,7 @@ test.describe('Phase 5 Edge Cases', () => {
 
         event = await createEvent(page, {
           title: `Multi Join Test ${Date.now()}`,
-          mode: 'normal',
+          mode: 'listen_only',
         });
 
         // Create 3 browser contexts
@@ -249,7 +249,7 @@ test.describe('Phase 5 Edge Cases', () => {
 
         event = await createEvent(page, {
           title: `Duplicate Answer Test ${Date.now()}`,
-          mode: 'normal',
+          mode: 'listen_only',
         });
 
         // Create segment and add question
@@ -341,7 +341,7 @@ test.describe('Phase 5 Edge Cases', () => {
 
         event = await createEvent(page, {
           title: `Lock Test ${Date.now()}`,
-          mode: 'normal',
+          mode: 'listen_only',
         });
 
         // First participant joins
@@ -407,12 +407,12 @@ test.describe('Phase 5 Edge Cases', () => {
 
         event1 = await createEvent(page, {
           title: `Event 1 ${Date.now()}`,
-          mode: 'normal',
+          mode: 'listen_only',
         });
 
         event2 = await createEvent(page, {
           title: `Event 2 ${Date.now()}`,
-          mode: 'normal',
+          mode: 'listen_only',
         });
 
         // Join first event
@@ -457,7 +457,7 @@ test.describe('Phase 5 Edge Cases', () => {
 
         event = await createEvent(page, {
           title: `Resume Test ${Date.now()}`,
-          mode: 'normal',
+          mode: 'listen_only',
         });
 
         // Create segment
@@ -516,7 +516,7 @@ test.describe('Phase 5 Edge Cases', () => {
 
         event = await createEvent(page, {
           title: `Rapid Resume Test ${Date.now()}`,
-          mode: 'normal',
+          mode: 'listen_only',
         });
 
         // Create completed segment

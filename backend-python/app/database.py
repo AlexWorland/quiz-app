@@ -3,7 +3,6 @@
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import get_settings
@@ -17,11 +16,15 @@ class Base(DeclarativeBase):
 
 settings = get_settings()
 
-# Create async engine
+# Create async engine with connection pooling
 engine = create_async_engine(
     settings.database_url,
     echo=settings.environment == "development",
     pool_pre_ping=True,
+    pool_size=20,  # Number of persistent connections
+    max_overflow=10,  # Additional connections when pool exhausted
+    pool_timeout=30,  # Wait time for connection availability (seconds)
+    pool_recycle=3600,  # Recycle connections after 1 hour
     connect_args={
         "server_settings": {"jit": "off"},
         "prepared_statement_cache_size": 0,

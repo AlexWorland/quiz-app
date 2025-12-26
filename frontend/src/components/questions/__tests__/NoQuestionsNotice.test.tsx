@@ -18,7 +18,7 @@ describe('NoQuestionsNotice', () => {
     expect(screen.getByText(/John Doe/i)).toBeInTheDocument()
   })
 
-  it('should render notice for traditional mode', () => {
+  it('should render notice for non-listen-only mode (legacy)', () => {
     render(
       <NoQuestionsNotice
         presenterName="Jane Smith"
@@ -58,7 +58,7 @@ describe('NoQuestionsNotice', () => {
     expect(screen.getByText(/wasn't suitable for quiz questions/i)).toBeInTheDocument()
   })
 
-  it('should not show reasons for traditional mode', () => {
+  it('should not show reasons for non-listen-only mode (legacy)', () => {
     render(
       <NoQuestionsNotice
         presenterName="John Doe"
@@ -70,7 +70,7 @@ describe('NoQuestionsNotice', () => {
     expect(screen.queryByText(/The recording was too short/i)).not.toBeInTheDocument()
   })
 
-  it('should show tip for traditional mode', () => {
+  it('should show tip for non-listen-only mode (legacy)', () => {
     render(
       <NoQuestionsNotice
         presenterName="John Doe"
@@ -146,7 +146,7 @@ describe('NoQuestionsNotice', () => {
     expect(screen.getByRole('button', { name: /Retry Generation/i })).toBeInTheDocument()
   })
 
-  it('should not show retry button in traditional mode', () => {
+  it('should not show retry button in non-listen-only mode (legacy)', () => {
     const onRetry = vi.fn()
 
     render(

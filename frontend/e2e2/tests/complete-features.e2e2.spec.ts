@@ -46,7 +46,7 @@ async function setupAuthAndData(
     data: {
       title: eventTitle,
       description: 'e2e2 complete-features test',
-      mode: 'normal',
+      mode: 'listen_only',
       num_fake_answers: 3,
       time_per_question: 30,
     },
@@ -371,7 +371,7 @@ test.describe.serial('Complete Missing Features (e2e2)', () => {
     await page.goto(`/events/${event.id}/segments/${segment.id}/host`)
 
     // Should show no questions notice with options
-    await expect(page.getByText('No Questions Generated')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'No Questions Generated' })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('button', { name: 'Skip to Next Presenter' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Add Questions Manually' })).toBeVisible()
   })
@@ -395,8 +395,8 @@ test.describe.serial('Complete Missing Features (e2e2)', () => {
     // Should show quiz controls including Start Quiz button
     await expect(page.getByRole('button', { name: /Start Quiz/i })).toBeVisible({ timeout: 10000 })
 
-    // Question list should show the test question
-    await expect(page.getByText('Question List')).toBeVisible()
+    // Question list heading should be visible (use getByRole to be specific)
+    await expect(page.getByRole('heading', { name: 'Generated Questions' })).toBeVisible()
   })
 
   test('status toast provides feedback for presenter actions', async ({ page }) => {

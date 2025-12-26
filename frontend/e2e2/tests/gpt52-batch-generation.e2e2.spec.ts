@@ -48,8 +48,7 @@ test.describe('GPT-5.2 Batch Question Generation', () => {
     await page.locator('input[placeholder*="Marketing" i], input[placeholder*="Conference" i]').first().fill('Batch Test Event')
     await page.locator('input[placeholder*="description" i], textarea[placeholder*="description" i]').first().fill('Testing GPT-5.2 batch generation')
 
-    // Select Listen Only mode
-    await page.locator('input[value="listen_only"]').check()
+    // Note: Mode selection removed - events now default to listen_only
 
     // Find and set questions_to_generate field (Input component creates ID from label)
     const questionsInput = page.locator('#input-questions-to-generate-per-segment')

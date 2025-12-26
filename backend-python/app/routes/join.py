@@ -10,8 +10,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import CurrentUser
 from app.database import get_db
-from app.models import Event, EventParticipant, JoinAttempt, JoinAttemptStatus
+from app.models import Event, EventParticipant, JoinAttempt, JoinAttemptStatus, JoinStatus
 from app.schemas import (
     EventParticipantResponse,
     EventResponse,
@@ -389,38 +390,27 @@ class JoinAsHostRequest(BaseModel):
 async def join_event_as_host(
     event_id: UUID,
     request: JoinAsHostRequest,
+    current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> JoinEventResponse:
     """Allow event host to join their own event as an anonymous participant."""
-    from app.auth.dependencies import get_current_user
-    from fastapi import Request as FastAPIRequest
-    from app.models import User
-
-    # Get authenticated user from request context
-    # Note: This requires authentication middleware
-    try:
-        # Get current user from JWT (would need auth dependency injection)
-        # For now, we'll verify host_id matches in a different way
-        pass
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-
     # Get event and verify user is host
     result = await db.execute(select(Event).where(Event.id == event_id))
     event = result.scalar_one_or_none()
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
-    # TODO: Verify current user is event.host_id (requires auth dependency)
-    # For now, this endpoint should be protected by authentication middleware
+    # Verify current user is the event host
+    if event.host_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Only the event host can join as participant"
+        )
 
     if event.join_locked:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Event joining is locked")
 
-    # Create anonymous participant for the host
+    # Create participant linked to host user
     device_id = uuid4()
     unique_name = await _get_unique_display_name(db, event_id, request.display_name.strip())
 
@@ -428,7 +418,7 @@ async def join_event_as_host(
     participant = EventParticipant(
         id=uuid4(),
         event_id=event_id,
-        user_id=None,  # Anonymous even though host
+        user_id=current_user.id,  # Link to host user so they can see Manage Event button
         display_name=unique_name,
         avatar_url=request.avatar_url,
         avatar_type=request.avatar_type,

@@ -77,6 +77,24 @@ class AdminSelectPresenterMessage(BaseModel):
     segment_id: UUID
 
 
+class SelectPresenterMessage(BaseModel):
+    """Host or current presenter selects the next presenter."""
+    type: str = "select_presenter"
+    presenter_user_id: UUID
+
+
+class StartPresentationMessage(BaseModel):
+    """Presenter starts their presentation (creates segment + starts recording)."""
+    type: str = "start_presentation"
+    title: str | None = None
+
+
+class ResumeSegmentMessage(BaseModel):
+    """Resume an existing segment."""
+    type: str = "resume_segment"
+    segment_id: UUID
+
+
 # Server -> Client messages
 class ParticipantInfo(BaseModel):
     user_id: UUID
@@ -268,6 +286,28 @@ class JoinLockStatusChangedMessage(BaseModel):
     message: str
 
 
+class QuizGeneratingMessage(BaseModel):
+    """Notify clients quiz generation started."""
+    type: Literal["quiz_generating"] = "quiz_generating"
+    segment_id: UUID
+
+
+class QuizReadyMessage(BaseModel):
+    """Notify clients quiz is ready."""
+    type: Literal["quiz_ready"] = "quiz_ready"
+    segment_id: UUID
+    questions_count: int
+    auto_start: bool = True
+
+
+class ProcessingStatusMessage(BaseModel):
+    """Real-time processing status for host."""
+    type: Literal["processing_status"] = "processing_status"
+    segment_id: UUID
+    stage: str
+    message: str
+
+
 class StateRestoredMessage(BaseModel):
     type: str = "state_restored"
     event_id: UUID
@@ -287,6 +327,29 @@ class PongMessage(BaseModel):
     type: str = "pong"
 
 
+class PresenterSelectedMessage(BaseModel):
+    """Notify all clients that a presenter has been selected."""
+    type: str = "presenter_selected"
+    presenter_id: UUID
+    presenter_name: str
+    is_first_presenter: bool = False
+
+
+class PresentationStartedMessage(BaseModel):
+    """Notify all clients that a presentation has started."""
+    type: str = "presentation_started"
+    segment_id: UUID
+    presenter_id: UUID
+    presenter_name: str
+
+
+class WaitingForPresenterMessage(BaseModel):
+    """Notify participants they are waiting for presenter selection."""
+    type: str = "waiting_for_presenter"
+    event_id: UUID
+    participant_count: int
+
+
 def parse_client_message(data: dict[str, Any]) -> BaseModel | None:
     """Parse a client message based on its type."""
     msg_type = data.get("type")
@@ -302,6 +365,9 @@ def parse_client_message(data: dict[str, Any]) -> BaseModel | None:
         "admin_select_presenter": AdminSelectPresenterMessage,
         "start_mega_quiz": StartMegaQuizMessage,
         "skip_mega_quiz": SkipMegaQuizMessage,
+        "select_presenter": SelectPresenterMessage,
+        "start_presentation": StartPresentationMessage,
+        "resume_segment": ResumeSegmentMessage,
         "pong": PongMessage,
     }
     parser = parsers.get(msg_type)

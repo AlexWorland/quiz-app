@@ -59,7 +59,7 @@ async function setupAuthAndData(
     data: {
       title: eventTitle,
       description: 'e2e2 ui-polish test',
-      mode: 'normal',
+      mode: 'listen_only',
       num_fake_answers: 3,
       time_per_question: 30,
     },
@@ -168,7 +168,7 @@ test.describe.serial('UI Polish Features (e2e2)', () => {
     await page.goto(`/events/${event.id}/segments/${segment.id}/host`)
 
     // Should show no questions notice
-    await expect(page.getByText('No Questions Generated')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'No Questions Generated' })).toBeVisible({ timeout: 10000 })
 
     // Should show presenter action buttons
     await expect(page.getByRole('button', { name: 'Skip to Next Presenter' })).toBeVisible()
@@ -235,7 +235,7 @@ test.describe.serial('UI Polish Features (e2e2)', () => {
     await page.goto(`/events/${event.id}/segments/${segment.id}/host`)
 
     // Wait for no questions notice
-    await expect(page.getByText('No Questions Generated')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('heading', { name: 'No Questions Generated' })).toBeVisible({ timeout: 10000 })
 
     // Click skip to next presenter
     const skipButton = page.getByRole('button', { name: 'Skip to Next Presenter' })

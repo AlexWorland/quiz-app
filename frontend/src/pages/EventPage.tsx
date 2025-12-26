@@ -8,9 +8,10 @@ import { getSegment } from '@/api/endpoints'
 export function EventPage() {
   const { eventId, segmentId } = useParams<{ eventId: string; segmentId?: string }>()
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, sessionToken } = useAuthStore()
   const [isPresenter, setIsPresenter] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     if (!eventId || !segmentId) {
@@ -23,12 +24,48 @@ export function EventPage() {
 
   const loadSegment = async () => {
     if (!eventId || !segmentId) return
+    
+    // Wait for auth store to rehydrate from localStorage
+    const authStore = useAuthStore.getState()
+    console.log('[EventPage] loadSegment called:', { 
+      retryCount, 
+      isAuthenticated: authStore.isAuthenticated,
+      hasToken: !!authStore.token,
+      hasSessionToken: !!authStore.sessionToken
+    })
+    
+    if (!authStore.isAuthenticated && !authStore.sessionToken && !authStore.token) {
+      // Retry up to 50 times (5 seconds total) to allow auth store to rehydrate
+      if (retryCount < 50) {
+        console.log('[EventPage] Auth not ready, retrying...', retryCount + 1)
+        setRetryCount(prev => prev + 1)
+        setTimeout(() => void loadSegment(), 100)
+        return
+      } else {
+        console.error('[EventPage] Auth never became ready after 50 retries')
+        navigate('/login')
+        return
+      }
+    }
+    
     try {
       setLoading(true)
+      console.log('[EventPage] Fetching segment:', { eventId, segmentId })
       const res = await getSegment(eventId, segmentId)
+      console.log('[EventPage] Segment loaded:', { 
+        status: res.data.status, 
+        previous_status: res.data.previous_status 
+      })
       
-      // Determine if current user is the presenter
-      if (user && res.data.presenter_user_id) {
+      // Check if user has a participant session (device session)
+      const hasParticipantSession = !!authStore.sessionToken
+      
+      // If user has participant session, show participant view even if they're the presenter
+      // This allows host to participate in their own event
+      if (hasParticipantSession) {
+        setIsPresenter(false)
+      } else if (user && res.data.presenter_user_id) {
+        // Otherwise, check if they're assigned as presenter
         setIsPresenter(res.data.presenter_user_id === user.id)
       } else {
         setIsPresenter(false)

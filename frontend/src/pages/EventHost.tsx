@@ -84,7 +84,7 @@ export function EventHostPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [presenterPausedReason, setPresenterPausedReason] = useState<string | null>(null)
 
-  // Tab state for Traditional Mode
+  // Tab state for manual question management (legacy mode)
   const [activeTab, setActiveTab] = useState<'add' | 'import' | 'list'>('add')
   const [showManualQuestionForm, setShowManualQuestionForm] = useState(false)
 
@@ -483,6 +483,21 @@ export function EventHostPage() {
       })
     }
   }
+
+  // Auto-start recording when arriving at a segment with status='recording'
+  // This happens when presenter clicks "Start Presentation" and is navigated here
+  const hasAutoStartedRecording = useRef(false)
+  useEffect(() => {
+    if (segment?.status === 'recording' && !isAudioRecording && !hasAutoStartedRecording.current) {
+      hasAutoStartedRecording.current = true
+      void handleStartRecording()
+    }
+  }, [segment?.status, isAudioRecording])
+
+  // Reset auto-start flag when segment changes
+  useEffect(() => {
+    hasAutoStartedRecording.current = false
+  }, [segmentId])
 
   const handleGenerateQuiz = async () => {
     if (!segmentId) return
@@ -1287,7 +1302,7 @@ export function EventHostPage() {
         {/* Questions + leaderboards */}
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1.5fr] gap-6 items-start">
           <div className="space-y-4">
-            {/* Traditional Mode: Tabbed Question Management */}
+            {/* Legacy Mode: Tabbed Question Management (for backward compatibility) */}
             {event.mode === 'normal' ? (
               <>
                 <div className="bg-dark-900 rounded-lg border border-dark-700 overflow-hidden">
